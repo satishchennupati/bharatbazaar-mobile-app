@@ -1,0 +1,112 @@
+{
+  "theme": "Light",
+  "archetype": "1 (Organic & Earthy) with High-Energy E-commerce Accents",
+  "instructions_to_main_agent": [
+    "Build a hybrid_fullstack React Native Expo application using NativeWind/Tailwind for styling.",
+    "Feature Parity: Browse, search, cart, checkout, orders history, user profile.",
+    "Auth Flow: Implement Username/password login for existing users, and OTP (SMS) registration flow for new users.",
+    "Localization: Implement multi-currency (Lekë 'L' and Euro '€') and multi-language support (English, Hindi, Albanian/Shqip, Italian, Greek, French, Macedonian). Add a switcher in the Profile tab and Splash/Onboarding screen.",
+    "Checkout & Cart: 'Cash on Delivery' is the ONLY allowed checkout method. Implement delivery fee logic: Free delivery on orders over 1500 L.",
+    "UI Chrome: Use '@expo/vector-icons' or 'lucide-react-native' for icons, but you MUST use standard text Emojis for category cards as per the brand website.",
+    "Navigation: Implement Bottom Tab Navigation (Home, Categories, Cart, Orders, Profile).",
+    "Testing: All interactive elements MUST include a 'data-testid' attribute (e.g., data-testid='add-to-cart-btn')."
+  ],
+  "colors": {
+    "primary": "#FF5722",
+    "primary_light": "#FFF0ED",
+    "background": "#FAFAF8",
+    "surface": "#FFFFFF",
+    "text_main": "#171717",
+    "text_muted": "#737373",
+    "text_disabled": "#A3A3A3",
+    "border": "#E5E5E5",
+    "success": "#22C55E",
+    "error": "#EF4444",
+    "coming_soon_badge": "#333333"
+  },
+  "typography": {
+    "font_family_heading": "Outfit, System",
+    "font_family_body": "Plus Jakarta Sans, System",
+    "h1": "text-4xl tracking-tight font-medium text-neutral-900",
+    "h2": "text-2xl tracking-tight font-medium text-neutral-900",
+    "h3": "text-xl tracking-tight font-medium text-neutral-900",
+    "body": "text-base text-neutral-500",
+    "small": "text-sm text-neutral-400"
+  },
+  "layout_and_spacing": {
+    "screen_padding": "px-4 py-6",
+    "gap_small": "gap-2",
+    "gap_medium": "gap-4",
+    "gap_large": "gap-6",
+    "border_radius_card": "rounded-2xl",
+    "border_radius_button": "rounded-xl",
+    "shadows": {
+      "card": "shadow-sm shadow-black/5",
+      "floating": "shadow-lg shadow-black/10"
+    }
+  },
+  "components": {
+    "PromoBanner": {
+      "style": "bg-[#FF5722] rounded-2xl p-4 overflow-hidden relative mb-6",
+      "text_style": "text-white font-medium text-lg leading-snug",
+      "content": "Free delivery on orders over 1500 L · Cash on delivery available"
+    },
+    "CategoryCard": {
+      "style": "bg-white rounded-2xl p-4 flex flex-col items-center justify-center border border-neutral-200 aspect-square",
+      "active_style": "border-[#FF5722] scale-95",
+      "icon": "Text element with 3xl size Emoji (e.g., 🍿, 🥣, 🍬, 🍵, 🌾)",
+      "title": "text-sm font-bold text-neutral-900 mt-2 text-center",
+      "subtitle": "text-xs font-medium text-[#FF5722]"
+    },
+    "CategoryCard_ComingSoon": {
+      "style": "bg-neutral-50 rounded-2xl p-4 flex flex-col items-center justify-center border border-dashed border-neutral-300 aspect-square opacity-70",
+      "icon_style": "grayscale",
+      "badge": "absolute top-2 right-2 bg-[#333333] text-white text-[10px] px-2 py-0.5 rounded-full"
+    },
+    "ProductCard": {
+      "style": "bg-white rounded-2xl p-3 border border-neutral-100 flex flex-col w-40 relative",
+      "image_container": "h-28 w-full rounded-xl bg-neutral-50 mb-3 overflow-hidden",
+      "title": "text-sm font-medium text-neutral-900 line-clamp-2 leading-tight",
+      "price": "text-base font-bold text-neutral-900 mt-1",
+      "add_button": "absolute bottom-3 right-3 bg-[#FFF0ED] border border-[#FF5722] rounded-lg px-3 py-1 items-center justify-center active:scale-95",
+      "add_button_text": "text-[#FF5722] font-bold text-sm"
+    },
+    "MiniCartOverlay": {
+      "style": "absolute bottom-20 left-4 right-4 bg-[#FF5722] rounded-2xl p-4 flex-row justify-between items-center shadow-lg shadow-[#FF5722]/30",
+      "text": "text-white font-bold"
+    },
+    "Buttons": {
+      "primary": "bg-[#FF5722] rounded-xl py-3 px-6 items-center justify-center flex-row active:opacity-80 active:scale-95",
+      "primary_text": "text-white font-bold text-base",
+      "outline": "border-2 border-[#FF5722] rounded-xl py-3 px-6 items-center justify-center bg-white active:bg-neutral-50",
+      "outline_text": "text-[#FF5722] font-bold text-base"
+    },
+    "Inputs": {
+      "style": "bg-white border border-neutral-200 rounded-xl px-4 py-3 text-base text-neutral-900 focus:border-[#FF5722] mb-4"
+    }
+  },
+  "media": {
+    "image_urls": [
+      {
+        "url": "https://images.unsplash.com/photo-1642177292958-ee6983f4b317?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwxfHxncm9jZXJ5JTIwZGVsaXZlcnklMjB2aWJyYW50JTIwb3JhbmdlJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3ODE1MzcxNjN8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Orange vibrant background",
+        "category": "promo_banner_background"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1488459716781-31db52582fe9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHwyfHxmcmVzaCUyMHZlZ2V0YWJsZXMlMjBhbmQlMjBmcnVpdHN8ZW58MHx8fHwxNzgxNTM3MTYzfDA&ixlib=rb-4.1.0&q=85",
+        "description": "Fresh vegetables and fruits",
+        "category": "product_image_fruits"
+      },
+      {
+        "url": "https://images.pexels.com/photos/3025236/pexels-photo-3025236.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Tropical fruits and vegetables",
+        "category": "product_image_exotic"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1688217170693-e821c6e18d72?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MTJ8MHwxfHNlYXJjaHwyfHxwYW50cnklMjBzbmFja3MlMjBjaGlwcyUyMGdyb2Nlcnl8ZW58MHx8fHwxNzgxNTM3MTYzfDA&ixlib=rb-4.1.0&q=85",
+        "description": "Pantry snacks chips",
+        "category": "product_image_snacks"
+      }
+    ]
+  }
+}
