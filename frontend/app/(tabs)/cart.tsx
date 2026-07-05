@@ -2,7 +2,7 @@
  * Cart: list items, edit qty, see totals, checkout.
  */
 import { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -110,7 +110,11 @@ export default function CartScreen() {
             renderItem={({ item }) => (
               <View style={styles.row} testID={`cart-item-${item.product_id}`}>
                 <View style={styles.imgBox}>
-                  <Text style={styles.imgEmoji}>{item.image_emoji}</Text>
+                  {item.image_url ? (
+                    <Image source={{ uri: item.image_url }} style={styles.imgReal} resizeMode="contain" />
+                  ) : (
+                    <Text style={styles.imgEmoji}>{item.image_emoji}</Text>
+                  )}
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.name} numberOfLines={2}>
@@ -213,6 +217,7 @@ const styles = StyleSheet.create({
   },
   imgBox: { width: 60, height: 60, backgroundColor: colors.surfaceMuted, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   imgEmoji: { fontSize: 32 },
+  imgReal: { width: "100%", height: "100%" },
   name: { fontSize: 14, fontWeight: "600", color: colors.textMain },
   unit: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   price: { fontSize: 14, fontWeight: "700", color: colors.textMain, marginTop: 4 },

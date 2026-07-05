@@ -2,7 +2,7 @@
  * Category product list (also handles /category/search?q=...).
  */
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -91,10 +91,14 @@ export default function CategoryScreen() {
           renderItem={({ item }) => (
             <Pressable style={styles.card} onPress={() => router.push(`/product/${item.id}`)} testID={`cat-prod-${item.id}`}>
               <View style={styles.img}>
-                <Text style={styles.imgEmoji}>{item.image_emoji}</Text>
+                {item.image_url ? (
+                  <Image source={{ uri: item.image_url }} style={styles.imgReal} resizeMode="contain" />
+                ) : (
+                  <Text style={styles.imgEmoji}>{item.image_emoji}</Text>
+                )}
               </View>
               <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
-              <Text style={styles.unit}>{item.unit}</Text>
+              <Text style={styles.unit}>{item.unit || item.weight}</Text>
               <View style={styles.footer}>
                 <Text style={styles.price}>{formatPrice(item.price_lek, item.price_eur, currency)}</Text>
                 <Pressable style={styles.addBtn} onPress={() => addToCart(item)} testID={`cat-add-${item.id}`}>
@@ -124,6 +128,7 @@ const styles = StyleSheet.create({
   card: { flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.md },
   img: { height: 96, backgroundColor: colors.surfaceMuted, borderRadius: radius.md, alignItems: "center", justifyContent: "center", marginBottom: 8 },
   imgEmoji: { fontSize: 48 },
+  imgReal: { width: "100%", height: "100%" },
   name: { fontSize: 13, fontWeight: "600", color: colors.textMain, lineHeight: 16 },
   unit: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   footer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },

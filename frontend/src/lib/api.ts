@@ -74,13 +74,24 @@ export type Product = {
   name: string;
   description: string;
   category_slug: string;
+  price: number;
   price_lek: number;
   price_eur: number;
+  discount: number;
+  sku: string;
+  product_code: string;
+  ean_barcode: string;
+  stock: number;
+  in_stock: boolean;
+  weight: string;
+  weight_grams: number | null;
+  weight_grams_inferred: boolean;
+  brand: string;
+  tags: string[];
+  variants: string[];
   image_emoji: string;
   image_url?: string | null;
   unit: string;
-  in_stock: boolean;
-  tags: string[];
 };
 
 export type CartItem = {

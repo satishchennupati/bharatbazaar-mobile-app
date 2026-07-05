@@ -17,9 +17,12 @@ Authenticated endpoints (Bearer JWT):
 """
 from __future__ import annotations
 
+import csv
+import io
 import logging
 import os
 import random
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -28,7 +31,7 @@ from typing import Annotated, List, Literal, Optional
 import bcrypt
 import jwt
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, FastAPI, File, Header, HTTPException, Query, UploadFile, status
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
 from starlette.middleware.cors import CORSMiddleware
@@ -68,6 +71,171 @@ if TWILIO_SID and TWILIO_TOKEN:
 
 OTP_LENGTH = int(os.environ.get("OTP_LENGTH", "6"))
 OTP_EXPIRY_MINUTES = int(os.environ.get("OTP_EXPIRY_MINUTES", "10"))
+ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "")
+
+
+# ------------------------------------------------------------------
+# CSV inventory import helpers
+# ------------------------------------------------------------------
+LEK_PER_EUR = 100.0
+
+# Map CSV category strings -> our 16-category slugs
+CATEGORY_MAP = {
+    "snacks": "snacks",
+    "rtc (ready to cook)": "rtc",
+    "ready to cook": "rtc",
+    "rte (ready to eat)": "rte",
+    "ready to eat": "rte",
+    "noodles & pasta": "noodles_pasta",
+    "noodles and pasta": "noodles_pasta",
+    "mouth freshners (mukhwas)": "mukhwas",
+    "mouth fresheners (mukhwas)": "mukhwas",
+    "mukhwas": "mukhwas",
+    "indian sweets (mithai)": "mithai",
+    "mithai": "mithai",
+    "flour": "flour",
+    "rice": "rice",
+    "lentils (dal)": "dal",
+    "dal": "dal",
+    "spices": "spices",
+    "spices powder (masala)": "spices",
+    "whole spices (sabut masala)": "spices",
+    "condiments": "spices",
+    "oil & ghee": "oils_ghee",
+    "oils & ghee": "oils_ghee",
+    "oils and ghee": "oils_ghee",
+    "pickles": "pickles",
+    "organic & healthy living": "organic",
+    "high protien food": "organic",
+    "high protein food": "organic",
+    "tea (chai)": "organic",
+    "pharma & wellness": "pharma",
+    "health care": "pharma",
+    "puja needs": "puja",
+    "flavors & fragrance": "puja",
+    "personal care": "personal_care",
+    "skin care": "personal_care",
+    "hair care": "personal_care",
+    "body care": "personal_care",
+}
+
+
+def _normalize_drive_url(url: str) -> Optional[str]:
+    """Convert Google Drive viewer URL -> direct image URL that RN Image can render."""
+    if not url:
+        return None
+    url = url.strip()
+    m = re.search(r"/file/d/([^/]+)", url)
+    if not m:
+        m = re.search(r"[?&]id=([^&]+)", url)
+    if m:
+        file_id = m.group(1)
+        # lh3.googleusercontent.com serves the file as an image via CDN
+        return f"https://lh3.googleusercontent.com/d/{file_id}=w600"
+    return url  # already a direct URL
+
+
+def _parse_float(v: str, default: float = 0.0) -> float:
+    try:
+        return float(str(v).strip().replace(",", "")) if v not in (None, "", "-") else default
+    except (ValueError, TypeError):
+        return default
+
+
+def _parse_int(v: str, default: int = 0) -> int:
+    try:
+        return int(_parse_float(v, default))
+    except (ValueError, TypeError):
+        return default
+
+
+def _slugify_cat(raw: str) -> Optional[str]:
+    key = (raw or "").strip().lower()
+    return CATEGORY_MAP.get(key)
+
+
+def _display_weight(grams: Optional[float], sku_hint: str) -> str:
+    if grams and grams > 0:
+        if grams >= 1000:
+            kg = grams / 1000.0
+            return f"{kg:g} kg"
+        return f"{int(grams)} g" if grams.is_integer() else f"{grams:g} g"
+    return sku_hint or ""
+
+
+def _row_to_product(row: dict) -> Optional[dict]:
+    """Convert one CSV row -> product dict; returns None if row invalid."""
+    name = (row.get("name") or "").strip()
+    cat_raw = (row.get("category") or "").strip()
+    slug = _slugify_cat(cat_raw)
+    if not name or not slug:
+        return None
+    weight_grams_raw = row.get("Weight (gm)") or row.get("weight_grams") or row.get("Weight") or ""
+    weight_grams = _parse_float(weight_grams_raw, 0.0)
+    weight_grams_val: Optional[float] = weight_grams if weight_grams > 0 else None
+    weight_display = _display_weight(weight_grams_val, (row.get("sku") or "").strip())
+    price = _parse_float(row.get("price"), 0.0)
+    tags_raw = (row.get("tags") or "").strip()
+    tags = [t.strip() for t in re.split(r"[|,;]", tags_raw) if t.strip()] if tags_raw else []
+    variants_raw = (row.get("variants") or "").strip()
+    variants = [v.strip() for v in re.split(r"[|,;]", variants_raw) if v.strip()] if variants_raw else []
+    product_code = (row.get("Product Code") or row.get("product_code") or "").strip()
+    # deterministic id from product_code (falls back to name+sku)
+    key = product_code or f"{name}-{row.get('sku', '')}"
+    import hashlib
+    pid = "p-" + hashlib.md5(key.encode()).hexdigest()[:12]
+    return {
+        "id": pid,
+        "name": name,
+        "description": (row.get("description") or name).strip(),
+        "category_slug": slug,
+        "price": price,
+        "price_lek": price,
+        "price_eur": round(price / LEK_PER_EUR, 2),
+        "discount": _parse_float(row.get("discount"), 0.0),
+        "sku": (row.get("sku") or "").strip(),
+        "product_code": product_code,
+        "ean_barcode": (row.get("EAN Barcode") or row.get("ean_barcode") or "").strip(),
+        "stock": _parse_int(row.get("stock"), 0),
+        "in_stock": _parse_int(row.get("stock"), 0) > 0,
+        "weight": weight_display,
+        "weight_grams": weight_grams_val,
+        "weight_grams_inferred": False,
+        "brand": (row.get("brand") or "").strip(),
+        "tags": tags,
+        "variants": variants,
+        "image_emoji": "🛒",
+        "image_url": _normalize_drive_url(row.get("image_url") or ""),
+        "unit": weight_display or (row.get("sku") or "").strip(),
+    }
+
+
+async def _import_products_from_csv_text(csv_text: str, replace: bool = False) -> dict:
+    """Parse CSV text, upsert products by id. Returns counts."""
+    reader = csv.DictReader(io.StringIO(csv_text))
+    imported = 0
+    skipped = 0
+    per_cat: dict = {}
+    if replace:
+        await db.products.delete_many({})
+    for row in reader:
+        prod = _row_to_product(row)
+        if not prod:
+            skipped += 1
+            continue
+        await db.products.update_one({"id": prod["id"]}, {"$set": prod}, upsert=True)
+        per_cat[prod["category_slug"]] = per_cat.get(prod["category_slug"], 0) + 1
+        imported += 1
+    # refresh category product_count
+    for slug, n in per_cat.items():
+        real_n = await db.products.count_documents({"category_slug": slug})
+        await db.categories.update_one({"slug": slug}, {"$set": {"product_count": real_n}})
+    # also set counts for cats with 0 products
+    for c in CATEGORIES_SEED:
+        real_n = await db.products.count_documents({"category_slug": c["slug"]})
+        await db.categories.update_one({"slug": c["slug"]}, {"$set": {"product_count": real_n}})
+    return {"imported": imported, "skipped": skipped, "per_category": per_cat}
+
 
 # ------------------------------------------------------------------
 # Auth helpers
@@ -132,13 +300,29 @@ class Product(BaseModel):
     name: str
     description: str = ""
     category_slug: str
+    # pricing (base = LEK; app displays LEK or EUR)
+    price: float
     price_lek: float
     price_eur: float
-    image_emoji: str
-    image_url: Optional[str] = None
-    unit: str = "1 pc"
+    discount: float = 0.0
+    # inventory
+    sku: str = ""
+    product_code: str = ""
+    ean_barcode: str = ""
+    stock: int = 0
     in_stock: bool = True
+    # weight
+    weight: str = ""
+    weight_grams: Optional[float] = None
+    weight_grams_inferred: bool = False
+    # taxonomy
+    brand: str = ""
     tags: List[str] = []
+    variants: List[str] = []
+    # media
+    image_emoji: str = "🛒"
+    image_url: Optional[str] = None
+    unit: str = ""
 
 
 class BannerOut(BaseModel):
@@ -596,6 +780,30 @@ async def get_order(order_id: str, user: dict = Depends(get_current_user)):
     return order
 
 
+# ---------- Admin: bulk import ----------
+def _check_admin(secret: Optional[str]):
+    if not ADMIN_SECRET:
+        raise HTTPException(status_code=500, detail="ADMIN_SECRET not configured on server")
+    if not secret or secret != ADMIN_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid admin secret")
+
+
+@api.post("/admin/products/import")
+async def admin_import_products(
+    file: UploadFile = File(...),
+    replace: bool = Query(False, description="If true, delete all existing products before importing"),
+    x_admin_secret: Annotated[Optional[str], Header(alias="X-Admin-Secret")] = None,
+):
+    _check_admin(x_admin_secret)
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("latin-1")
+    result = await _import_products_from_csv_text(text, replace=replace)
+    return {"ok": True, **result}
+
+
 # ------------------------------------------------------------------
 # Startup: seed data
 # ------------------------------------------------------------------
@@ -620,11 +828,19 @@ async def seed_db():
         logger.info("Seeded %d categories", len(CATEGORIES_SEED))
     prod_count = await db.products.count_documents({})
     if prod_count == 0:
-        await db.products.insert_many([dict(p) for p in PRODUCTS_SEED])
-        logger.info("Seeded %d products", len(PRODUCTS_SEED))
-        for c in CATEGORIES_SEED:
-            n = sum(1 for p in PRODUCTS_SEED if p["category_slug"] == c["slug"])
-            await db.categories.update_one({"slug": c["slug"]}, {"$set": {"product_count": n}})
+        csv_path = ROOT_DIR / "inventory_import.csv"
+        if csv_path.exists():
+            with open(csv_path, encoding="latin-1") as f:
+                text = f.read()
+            result = await _import_products_from_csv_text(text, replace=False)
+            logger.info("Imported %d products from CSV (skipped %d)", result["imported"], result["skipped"])
+        else:
+            # Fallback: sample seed
+            await db.products.insert_many([dict(p) for p in PRODUCTS_SEED])
+            logger.info("Seeded %d sample products", len(PRODUCTS_SEED))
+            for c in CATEGORIES_SEED:
+                n = sum(1 for p in PRODUCTS_SEED if p["category_slug"] == c["slug"])
+                await db.categories.update_one({"slug": c["slug"]}, {"$set": {"product_count": n}})
     if need_reseed:
         await db.meta.update_one(
             {"key": "catalog_seed"},

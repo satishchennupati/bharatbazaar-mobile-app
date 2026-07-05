@@ -2,7 +2,7 @@
  * Home: promo banner + search + category grid + featured products.
  */
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View, Image } from "react-native";
+import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -170,12 +170,16 @@ function ProductCard({
   return (
     <Pressable style={styles.prodCard} onPress={onPress} testID={`product-card-${p.id}`}>
       <View style={styles.prodImage}>
-        <Text style={styles.prodEmoji}>{p.image_emoji}</Text>
+        {p.image_url ? (
+          <Image source={{ uri: p.image_url }} style={styles.prodImg} resizeMode="contain" />
+        ) : (
+          <Text style={styles.prodEmoji}>{p.image_emoji}</Text>
+        )}
       </View>
       <Text style={styles.prodName} numberOfLines={2}>
         {p.name}
       </Text>
-      <Text style={styles.prodUnit}>{p.unit}</Text>
+      <Text style={styles.prodUnit}>{p.unit || p.weight}</Text>
       <View style={styles.prodFooter}>
         <Text style={styles.prodPrice}>{formatPrice(p.price_lek, p.price_eur, currency)}</Text>
         <Pressable onPress={onAdd} style={styles.addBtn} testID={`add-to-cart-${p.id}`}>
@@ -276,6 +280,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   prodEmoji: { fontSize: 44 },
+  prodImg: { width: "100%", height: "100%" },
   prodName: { fontSize: 13, fontWeight: "600", color: colors.textMain, lineHeight: 16 },
   prodUnit: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   prodFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },

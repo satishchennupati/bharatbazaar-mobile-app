@@ -2,7 +2,7 @@
  * Product detail screen.
  */
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -66,11 +66,16 @@ export default function ProductDetail() {
           </Pressable>
         </View>
         <View style={styles.hero}>
-          <Text style={styles.heroEmoji}>{product.image_emoji}</Text>
+          {product.image_url ? (
+            <Image source={{ uri: product.image_url }} style={styles.heroImg} resizeMode="contain" />
+          ) : (
+            <Text style={styles.heroEmoji}>{product.image_emoji}</Text>
+          )}
         </View>
         <View style={styles.body}>
-          <Text style={styles.unitChip}>{product.unit}</Text>
+          <Text style={styles.unitChip}>{product.unit || product.weight || product.sku}</Text>
           <Text style={styles.name} testID="prod-name">{product.name}</Text>
+          {product.brand ? <Text style={styles.brand}>by {product.brand}</Text> : null}
           <Text style={styles.price}>{formatPrice(product.price_lek, product.price_eur, currency)}</Text>
           <Text style={styles.desc}>{product.description}</Text>
           {product.tags.length > 0 && (
@@ -110,6 +115,8 @@ const styles = StyleSheet.create({
   back: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   hero: { height: 280, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryLight, marginHorizontal: spacing.lg, borderRadius: radius.xl },
   heroEmoji: { fontSize: 140 },
+  heroImg: { width: "80%", height: "80%" },
+  brand: { fontSize: 13, color: colors.textMuted, marginTop: 4, fontWeight: "500" },
   body: { padding: spacing.lg },
   unitChip: { backgroundColor: colors.surfaceMuted, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, fontSize: 11, color: colors.textMuted, fontWeight: "600" },
   name: { fontSize: 24, fontWeight: "700", color: colors.textMain, marginTop: 12, letterSpacing: -0.4 },

@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from typing import Dict, List
 
-SEED_VERSION = "v2-2026-07"
+SEED_VERSION = "v3-2026-07-csv"
 LEK_PER_EUR = 100.0
 
 
