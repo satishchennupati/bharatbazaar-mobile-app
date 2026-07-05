@@ -820,17 +820,31 @@ def _extract_drive_id(url: str) -> Optional[str]:
 
 
 async def _download_drive_file(file_id: str) -> Optional[bytes]:
-    """Download a public Google Drive file via API v3 alt=media."""
-    if not GOOGLE_DRIVE_API_KEY:
-        return None
-    url = f"https://www.googleapis.com/drive/v3/files/{file_id}"
-    params = {"alt": "media", "key": GOOGLE_DRIVE_API_KEY}
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-        r = await client.get(url, params=params)
-        if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/"):
-            return r.content
-        logger.warning("Drive download failed for %s: %s %s", file_id, r.status_code, r.text[:200])
-        return None
+    """Download a Drive image via Google's public CDN endpoints.
+
+    Tries endpoints in order:
+      1. lh3.googleusercontent.com/d/{id}=w800  (image CDN, fastest)
+      2. drive.google.com/uc?export=download&id={id}  (fallback)
+    The API-key path is skipped here because Google's abuse detection
+    aggressively throttles server-to-server media downloads via that route.
+    """
+    urls = [
+        f"https://lh3.googleusercontent.com/d/{file_id}=w800",
+        f"https://drive.google.com/uc?export=download&id={file_id}",
+    ]
+    headers = {"User-Agent": "Mozilla/5.0 (compatible; BharatBazaar/1.0)"}
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=headers) as client:
+        for url in urls:
+            try:
+                r = await client.get(url)
+            except httpx.RequestError as exc:
+                logger.warning("Drive fetch network error %s: %s", file_id, exc)
+                continue
+            if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/"):
+                return r.content
+            logger.debug("Drive fetch %s from %s -> %s", file_id, url, r.status_code)
+    logger.warning("Drive download failed for %s from all endpoints", file_id)
+    return None
 
 
 async def _sync_one_product_image(product: dict) -> str:
@@ -865,8 +879,6 @@ async def admin_sync_product_images(
     x_admin_secret: Annotated[Optional[str], Header(alias="X-Admin-Secret")] = None,
 ):
     _check_admin(x_admin_secret)
-    if not GOOGLE_DRIVE_API_KEY:
-        raise HTTPException(status_code=500, detail="GOOGLE_DRIVE_API_KEY not configured")
     # find products whose image_url still points to Google Drive
     cur = db.products.find(
         {"image_url": {"$regex": "google", "$options": "i"}},
