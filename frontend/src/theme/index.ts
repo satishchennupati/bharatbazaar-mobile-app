@@ -1,5 +1,5 @@
 /**
- * myBazaarCart design tokens — mirrors website branding (mybazaarcart.com)
+ * Bharat Bazaar design tokens — mirrors website branding (mybazaarcart.com)
  */
 export const colors = {
   primary: "#FF5722",

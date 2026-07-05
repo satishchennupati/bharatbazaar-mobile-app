@@ -1,4 +1,4 @@
-"""myBazaarCart mobile backend.
+"""Bharat Bazaar mobile backend.
 
 Public endpoints:
 - /api/health
@@ -41,7 +41,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger("mybazaarcart")
+logger = logging.getLogger("bharat_bazaar")
 
 # ------------------------------------------------------------------
 # DB
@@ -200,13 +200,13 @@ class PlaceOrderIn(BaseModel):
 # ------------------------------------------------------------------
 # App + Router
 # ------------------------------------------------------------------
-app = FastAPI(title="myBazaarCart API")
+app = FastAPI(title="Bharat Bazaar API")
 api = APIRouter(prefix="/api")
 
 
 @api.get("/health")
 async def health():
-    return {"status": "ok", "service": "mybazaarcart", "ts": datetime.now(timezone.utc).isoformat()}
+    return {"status": "ok", "service": "bharat_bazaar", "ts": datetime.now(timezone.utc).isoformat()}
 
 
 # ---------- Public catalog ----------
@@ -273,7 +273,7 @@ async def _send_sms_otp(phone: str, code: str) -> dict:
     if not twilio_client:
         logger.warning("Twilio not configured; OTP not sent for %s (code=%s)", phone, code)
         return {"sent": False, "channel": "mock"}
-    body = f"Your myBazaarCart verification code is {code}. It expires in {OTP_EXPIRY_MINUTES} minutes."
+    body = f"Your Bharat Bazaar verification code is {code}. It expires in {OTP_EXPIRY_MINUTES} minutes."
     kwargs = {"body": body, "to": phone}
     if TWILIO_MSID:
         kwargs["messaging_service_sid"] = TWILIO_MSID
@@ -588,7 +588,7 @@ async def seed_db():
                 "username": "demo",
                 "phone": "+355690000000",
                 "full_name": "Demo Customer",
-                "email": "demo@mybazaarcart.com",
+                "email": "demo@bharatbazaar.com",
                 "language": "en",
                 "currency": "LEK",
                 "password_hash": hash_pw("demo1234"),

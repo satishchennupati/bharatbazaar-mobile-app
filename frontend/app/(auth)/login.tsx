@@ -2,7 +2,7 @@
  * Login: username + password for existing users.
  */
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -46,10 +46,8 @@ export default function Login() {
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <KeyboardAwareScrollView contentContainerStyle={styles.scroll} bottomOffset={20} showsVerticalScrollIndicator={false}>
         <View style={styles.brandRow}>
-          <View style={styles.logoBadge}>
-            <Ionicons name="basket" size={22} color="#fff" />
-          </View>
-          <Text style={styles.brand}>myBazaarCart</Text>
+          <Image source={require("@/assets/images/logo.png")} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.brand}>Bharat Bazaar</Text>
         </View>
         <Text style={styles.title}>{t("login")}</Text>
         <Text style={styles.sub}>{t("tagline")}</Text>
@@ -120,14 +118,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   scroll: { padding: spacing.lg, paddingBottom: 60 },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: spacing.md },
-  logoBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  logo: { width: 40, height: 40 },
   brand: { fontSize: 18, fontWeight: "700", color: colors.textMain },
   title: { fontSize: 32, fontWeight: "700", color: colors.textMain, marginTop: spacing.xl, letterSpacing: -0.5 },
   sub: { fontSize: 14, color: colors.textMuted, marginTop: 4, marginBottom: spacing.xl },

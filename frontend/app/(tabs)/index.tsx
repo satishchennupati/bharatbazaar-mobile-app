@@ -2,7 +2,7 @@
  * Home: promo banner + search + category grid + featured products.
  */
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -75,9 +75,7 @@ export default function Home() {
           </Text>
           <Text style={styles.deliverTo}>Deliver to Tirana, Albania</Text>
         </View>
-        <View style={styles.logoBadge}>
-          <Ionicons name="basket" size={18} color="#fff" />
-        </View>
+        <Image source={require("@/assets/images/logo.png")} style={styles.headerLogo} resizeMode="contain" />
       </View>
 
       <View style={styles.searchBar}>
@@ -201,14 +199,7 @@ const styles = StyleSheet.create({
   },
   hello: { fontSize: 18, fontWeight: "700", color: colors.textMain },
   deliverTo: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  logoBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  headerLogo: { width: 40, height: 40 },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",

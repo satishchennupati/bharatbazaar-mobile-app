@@ -94,7 +94,7 @@ export default function Profile() {
           <Text style={styles.logoutText}>{t("logout")}</Text>
         </Pressable>
 
-        <Text style={styles.version}>myBazaarCart · v1.0</Text>
+        <Text style={styles.version}>Bharat Bazaar · v1.0</Text>
       </ScrollView>
 
       <PickerModal

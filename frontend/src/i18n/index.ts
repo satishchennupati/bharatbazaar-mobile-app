@@ -1,5 +1,5 @@
 /**
- * Multi-language strings for myBazaarCart.
+ * Multi-language strings for Bharat Bazaar.
  * Supported: en, hi, sq (Albanian), it, el (Greek), fr, mk (Macedonian)
  */
 
@@ -25,7 +25,7 @@ export const CURRENCIES: { code: Currency; label: string; symbol: string }[] = [
 type Dict = Record<string, string>;
 
 const en: Dict = {
-  app_name: "myBazaarCart",
+  app_name: "Bharat Bazaar",
   tagline: "Your bazaar, in your pocket",
   pick_language: "Choose your language",
   pick_currency: "Choose your currency",
@@ -101,7 +101,7 @@ const en: Dict = {
   verify: "Verify & create account",
   resend_otp: "Resend code",
   have_account: "Already have an account?",
-  no_account: "New to myBazaarCart?",
+  no_account: "New to Bharat Bazaar?",
   // profile
   language: "Language",
   currency: "Currency",
@@ -182,7 +182,7 @@ const sq: Dict = {
   verify: "Verifiko & krijo llogarinë",
   resend_otp: "Ridërgo kodin",
   have_account: "Ke tashmë një llogari?",
-  no_account: "I ri në myBazaarCart?",
+  no_account: "I ri në Bharat Bazaar?",
   language: "Gjuha",
   currency: "Monedha",
   saved_addresses: "Adresat e ruajtura",

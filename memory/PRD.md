@@ -1,7 +1,7 @@
-# myBazaarCart — Mobile App PRD
+# Bharat Bazaar — Mobile App PRD
 
 ## Overview
-A React Native Expo mobile companion to **mybazaarcart.com** — Albania's grocery delivery marketplace. The app mirrors website branding (orange `#FF5722` on warm off-white `#FAFAF8`) and replicates the website's category-led shopping flow.
+A React Native Expo mobile app for **Bharat Bazaar** (companion to mybazaarcart.com) — grocery delivery marketplace serving Albania and neighbouring markets. Mirrors website branding (orange `#FF5722` on warm off-white `#FAFAF8`) and replicates the website's category-led shopping flow.
 
 ## Users
 - **Existing customers** log in with username + password.
@@ -12,7 +12,7 @@ A React Native Expo mobile companion to **mybazaarcart.com** — Albania's groce
 - 2 currencies: Lekë (L) and Euro (€). Currency conversion uses a flat 1 EUR ≈ 100 L ratio for display.
 
 ## Features
-1. **Onboarding** — language + currency picker on first launch.
+1. **Onboarding** — language + currency picker on first launch, features the Bharat Bazaar B-cart logo.
 2. **Authentication**
    - Username/password login (existing users)
    - OTP-verified signup (new users) via Twilio SMS
@@ -26,11 +26,16 @@ A React Native Expo mobile companion to **mybazaarcart.com** — Albania's groce
 10. **Orders history** — past orders with status, items, total.
 11. **Profile** — user info, language switcher, currency switcher, saved addresses count, logout.
 
+## Branding
+- App name: **Bharat Bazaar**
+- Logo: orange B-shaped shopping cart (used in launcher icon, splash, onboarding, login header, home header).
+- Primary color: `#FF5722`  |  Surface: `#FFFFFF`  |  Background: `#FAFAF8`
+
 ## Backend (FastAPI + MongoDB)
 - 19 categories seeded (matching website slugs/emojis)
 - 174 products seeded across 10 active categories
 - JWT auth, bcrypt password hash
-- Twilio OTP send/verify with rate limiting (5 attempts, 10-minute expiry)
+- Twilio OTP send/verify with rate limiting (5 attempts, 10-minute expiry). SMS body: *"Your Bharat Bazaar verification code is XXXXXX."*
 - Cart persistence per user, COD-only order placement
 - Free delivery threshold: ≥ 1500 LEK, otherwise 99 LEK delivery fee
 

@@ -2,7 +2,7 @@
  * Boot screen: never rendered (root layout redirects). Acts as fallback.
  */
 import { useEffect } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 
 import { colors } from "@/src/theme";
 
@@ -12,7 +12,8 @@ export default function Index() {
   }, []);
   return (
     <View style={styles.container} testID="boot-screen">
-      <Text style={styles.brand}>myBazaarCart</Text>
+      <Image source={require("@/assets/images/logo.png")} style={styles.logo} resizeMode="contain" />
+      <Text style={styles.brand}>Bharat Bazaar</Text>
       <ActivityIndicator color={colors.primary} style={{ marginTop: 16 }} />
     </View>
   );
@@ -25,6 +26,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  logo: { width: 92, height: 92, marginBottom: 12 },
   brand: {
     fontSize: 26,
     fontWeight: "700",
