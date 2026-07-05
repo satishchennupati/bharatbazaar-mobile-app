@@ -51,6 +51,8 @@ export type SelectedAddress = {
   formatted_address: string;
   line1: string;
   city: string;
+  state: string;
+  area: string;
   postal_code: string;
   country: string;
   country_code: string;

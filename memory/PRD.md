@@ -32,6 +32,8 @@ A React Native Expo mobile app for **Bharat Bazaar** (companion to mybazaarcart.
    - WhatsApp number (optional)
    - Order note (optional)
    COD-only payment, place order, address persisted to user profile on first save.
+   **Reverse-geocode auto-fill**: when the user picks a location on the map, Google's returned admin_area_level_1 (e.g. "Tirana County", "Durrës County", "Qarku i Tiranës") is fuzzy-matched to our 12 qarks list and the corresponding bashkia is auto-selected too.
+   **Mini-map preview**: a Google Static Maps image of the picked location is shown inline (requires "Maps Static API" enabled on the Google key). A graceful pin-badge + coordinate fallback is displayed when the API returns 403.
 9. **Order success** — order ID + ETA.
 10. **Orders history** — past orders with status, items, total.
 11. **Profile** — user info, language switcher, currency switcher, saved addresses count, logout.

@@ -4,17 +4,18 @@
  * landmark, phone, whatsapp (optional).
  */
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { api, type Cart } from "@/src/lib/api";
+import { resolveImageUrl } from "@/src/lib/api";
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { colors, radius, spacing } from "@/src/theme";
 import { COUNTRIES, findCountryByCode, findCountryByName } from "@/src/data/countries";
-import { ALBANIA_QARKS, bashkiaFor } from "@/src/data/albania-regions";
+import { ALBANIA_QARKS, bashkiaFor, matchQark, matchBashkia } from "@/src/data/albania-regions";
 import { SearchablePicker, type PickerItem } from "@/src/components/searchable-picker";
 import { DropdownField } from "@/src/components/dropdown-field";
 
@@ -57,8 +58,19 @@ export default function Checkout() {
     if (selectedAddress) {
       setEntryMode("map");
       const c = findCountryByName(selectedAddress.country || "Albania");
-      setCountryCode(c?.code || selectedAddress.country_code || "AL");
-      setCity(selectedAddress.city || "");
+      const cc = c?.code || selectedAddress.country_code || "AL";
+      setCountryCode(cc);
+      // Reverse-geocode auto-fill for Albania: match qark & bashkia to our lists.
+      if (cc === "AL") {
+        const qark = matchQark(selectedAddress.state) || "";
+        if (qark) setState(qark);
+        const bashkia = matchBashkia(selectedAddress.city, qark) || selectedAddress.city || "";
+        if (bashkia) setCity(bashkia);
+      } else {
+        setState(selectedAddress.state || "");
+        setCity(selectedAddress.city || "");
+      }
+      if (selectedAddress.area) setArea(selectedAddress.area);
       setLine1(selectedAddress.line1 || selectedAddress.formatted_address || "");
       setPostal(selectedAddress.postal_code || "");
       return;
@@ -218,24 +230,34 @@ export default function Checkout() {
         </View>
 
         {entryMode === "map" && (
-          <Pressable
-            onPress={() => router.push("/address-picker")}
-            style={styles.mapBtn}
-            testID="co-open-map-picker"
-          >
-            <Ionicons name="location" size={20} color={colors.primary} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.primary, fontWeight: "700" }}>
-                {selectedAddress ? "Change address on map" : "Pick address on map"}
-              </Text>
-              {selectedAddress?.formatted_address ? (
-                <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }} numberOfLines={2}>
-                  {selectedAddress.formatted_address}
+          <>
+            <Pressable
+              onPress={() => router.push("/address-picker")}
+              style={styles.mapBtn}
+              testID="co-open-map-picker"
+            >
+              <Ionicons name="location" size={20} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.primary, fontWeight: "700" }}>
+                  {selectedAddress ? "Change address on map" : "Pick address on map"}
                 </Text>
-              ) : null}
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.primary} />
-          </Pressable>
+                {selectedAddress?.formatted_address ? (
+                  <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }} numberOfLines={2}>
+                    {selectedAddress.formatted_address}
+                  </Text>
+                ) : null}
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+            </Pressable>
+
+            {selectedAddress?.lat && selectedAddress?.lng ? (
+              <MiniMapPreview
+                lat={selectedAddress.lat}
+                lng={selectedAddress.lng}
+                onPress={() => router.push("/address-picker")}
+              />
+            ) : null}
+          </>
         )}
 
         {/* Country */}
@@ -460,6 +482,46 @@ export default function Checkout() {
   );
 }
 
+function MiniMapPreview({ lat, lng, onPress }: { lat: number; lng: number; onPress: () => void }) {
+  const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const url = resolveImageUrl(`/api/geo/static-map?lat=${lat}&lng=${lng}&width=700&height=280`);
+
+  if (failed) {
+    return (
+      <Pressable onPress={onPress} style={styles.miniMapFallback} testID="mini-map-fallback">
+        <View style={styles.mapPinBadge}>
+          <Ionicons name="location" size={24} color="#fff" />
+        </View>
+        <Text style={styles.mapCoord}>
+          {lat.toFixed(5)}, {lng.toFixed(5)}
+        </Text>
+        <Text style={styles.mapCoordSub}>Tap to change on map</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable onPress={onPress} style={styles.miniMapWrap} testID="mini-map">
+      {url ? (
+        <Image
+          source={{ uri: url }}
+          style={styles.miniMap}
+          resizeMode="cover"
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+        />
+      ) : null}
+      {loaded && (
+        <View style={styles.miniMapOverlay} pointerEvents="none">
+          <Ionicons name="expand" size={14} color="#fff" />
+          <Text style={styles.miniMapOverlayText}>Change</Text>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
 function SegmentTab({
   label,
   icon,
@@ -575,6 +637,48 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: spacing.md,
   },
+  miniMapWrap: {
+    marginBottom: spacing.md,
+    borderRadius: radius.lg,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceMuted,
+  },
+  miniMap: { width: "100%", height: 140 },
+  miniMapOverlay: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.md,
+  },
+  miniMapOverlayText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  miniMapFallback: {
+    marginBottom: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+    paddingVertical: spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  mapPinBadge: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: colors.primary,
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 4,
+  },
+  mapCoord: { fontSize: 13, fontWeight: "700", color: colors.textMain },
+  mapCoordSub: { fontSize: 11, color: colors.textMuted },
   helper: { fontSize: 11, color: colors.textMuted, marginTop: 4, marginBottom: 4 },
   payOpt: {
     flexDirection: "row",

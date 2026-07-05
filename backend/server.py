@@ -32,7 +32,7 @@ import bcrypt
 import httpx
 import jwt
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, FastAPI, File, Header, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, FastAPI, File, Header, HTTPException, Query, Response, UploadFile, status
 from fastapi.staticfiles import StaticFiles
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
@@ -855,8 +855,14 @@ async def geo_place_details(place_id: str = Query(...)):
             parts["country"] = comp.get("long_name")
         if "postal_code" in types:
             parts["postal_code"] = comp.get("long_name")
-        if "locality" in types or "administrative_area_level_2" in types:
+        if "administrative_area_level_1" in types:
+            parts["state"] = comp.get("long_name")
+        if "administrative_area_level_2" in types:
             parts.setdefault("city", comp.get("long_name"))
+        if "locality" in types:
+            parts["city"] = comp.get("long_name")  # locality overrides admin_area_level_2 as city
+        if "sublocality" in types or "sublocality_level_1" in types or "neighborhood" in types:
+            parts.setdefault("area", comp.get("long_name"))
         if "route" in types:
             parts.setdefault("street", comp.get("long_name"))
         if "street_number" in types:
@@ -870,7 +876,9 @@ async def geo_place_details(place_id: str = Query(...)):
         "lng": loc.get("lng"),
         "country_code": country_code,
         "country": parts.get("country"),
+        "state": parts.get("state", ""),
         "city": parts.get("city"),
+        "area": parts.get("area", ""),
         "postal_code": parts.get("postal_code", ""),
         "line1": line1,
         "serviceable": serviceable,
@@ -879,8 +887,14 @@ async def geo_place_details(place_id: str = Query(...)):
 
 
 @api.get("/geo/static-map")
-async def geo_static_map(lat: float = Query(...), lng: float = Query(...), zoom: int = Query(15, ge=8, le=20), width: int = Query(600, ge=100, le=800), height: int = Query(300, ge=100, le=400)):
-    """Return the Google Static Maps URL (kept server-side to avoid leaking the key)."""
+async def geo_static_map(
+    lat: float = Query(...),
+    lng: float = Query(...),
+    zoom: int = Query(15, ge=8, le=20),
+    width: int = Query(600, ge=100, le=800),
+    height: int = Query(300, ge=100, le=400),
+):
+    """Stream a Google Static Map PNG through the backend so the API key stays server-side."""
     if not GOOGLE_MAPS_API_KEY:
         raise HTTPException(status_code=500, detail="Maps API key not configured")
     url = (
@@ -889,7 +903,17 @@ async def geo_static_map(lat: float = Query(...), lng: float = Query(...), zoom:
         f"&markers=color:0xFF5722%7C{lat},{lng}&key={GOOGLE_MAPS_API_KEY}"
         "&scale=2&style=feature:poi|element:labels|visibility:off"
     )
-    return {"url": url, "lat": lat, "lng": lng}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get(url)
+    if r.status_code != 200:
+        # Common cause: "Maps Static API" not enabled on the API key.
+        # Return 502 so the frontend <Image> onError handler can show a graceful fallback.
+        raise HTTPException(status_code=502, detail="static_map_unavailable")
+    return Response(
+        content=r.content,
+        media_type=r.headers.get("content-type", "image/png"),
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 # ---------- Admin: bulk import ----------

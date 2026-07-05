@@ -53,8 +53,8 @@ export default function AddressPicker() {
       setSelected(details);
       setQuery(details.formatted_address);
       if (details.lat && details.lng) {
-        const m = await api.get<{ url: string }>(`/geo/static-map?lat=${details.lat}&lng=${details.lng}&width=600&height=280`);
-        setMapUrl(m.url);
+        // Direct URL — backend streams the image (key stays server-side).
+        setMapUrl(resolveImageUrl(`/api/geo/static-map?lat=${details.lat}&lng=${details.lng}&width=600&height=280`) || null);
       }
     } finally {
       setLoading(false);
