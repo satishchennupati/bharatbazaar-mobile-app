@@ -75,6 +75,7 @@ export type Category = {
   coming_soon: boolean;
   product_count: number;
   sort_order: number;
+  image_url?: string | null;
 };
 
 export type Product = {

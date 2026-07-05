@@ -2,11 +2,11 @@
  * Browse all categories grid.
  */
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
-import { api, type Category } from "@/src/lib/api";
+import { api, resolveImageUrl, type Category } from "@/src/lib/api";
 import { useApp } from "@/src/store/app-context";
 import { colors, radius, spacing } from "@/src/theme";
 
@@ -55,7 +55,15 @@ export default function Categories() {
                 <Text style={styles.badgeText}>{t("coming_soon")}</Text>
               </View>
             )}
-            <Text style={[styles.emoji, item.coming_soon && { opacity: 0.35 }]}>{item.emoji}</Text>
+            {item.image_url ? (
+              <Image
+                source={{ uri: resolveImageUrl(item.image_url) }}
+                style={[styles.imageBox, item.coming_soon && { opacity: 0.35 }]}
+                resizeMode="cover"
+              />
+            ) : (
+              <Text style={[styles.emoji, item.coming_soon && { opacity: 0.35 }]}>{item.emoji}</Text>
+            )}
             <Text style={[styles.name, item.coming_soon && { color: colors.textDisabled }]} numberOfLines={2}>
               {item.name}
             </Text>
@@ -94,6 +102,7 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: "#fff", fontSize: 9, fontWeight: "700", letterSpacing: 0.5 },
   emoji: { fontSize: 32, marginBottom: 6 },
+  imageBox: { width: "100%", height: 72, borderRadius: 12, marginBottom: 6, backgroundColor: colors.surfaceMuted },
   name: { fontSize: 14, fontWeight: "700", color: colors.textMain, lineHeight: 18 },
   count: { fontSize: 11, color: colors.primary, fontWeight: "700", marginTop: 4 },
 });

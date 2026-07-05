@@ -300,6 +300,7 @@ class Category(BaseModel):
     coming_soon: bool = False
     product_count: int = 0
     sort_order: int = 0
+    image_url: Optional[str] = None
 
 
 class Product(BaseModel):

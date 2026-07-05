@@ -141,7 +141,15 @@ function CategoryTile({ cat, onPress, t }: { cat: Category; onPress: () => void;
           <Text style={styles.comingSoonText}>{t("coming_soon")}</Text>
         </View>
       )}
-      <Text style={[styles.catEmoji, disabled && { opacity: 0.35 }]}>{cat.emoji}</Text>
+      {cat.image_url ? (
+        <Image
+          source={{ uri: resolveImageUrl(cat.image_url) }}
+          style={[styles.catImage, disabled && { opacity: 0.35 }]}
+          resizeMode="cover"
+        />
+      ) : (
+        <Text style={[styles.catEmoji, disabled && { opacity: 0.35 }]}>{cat.emoji}</Text>
+      )}
       <Text style={[styles.catName, disabled && { color: colors.textDisabled }]} numberOfLines={2}>
         {cat.name}
       </Text>
@@ -252,6 +260,7 @@ const styles = StyleSheet.create({
   },
   comingSoonText: { color: "#fff", fontSize: 9, fontWeight: "700", letterSpacing: 0.5 },
   catEmoji: { fontSize: 30, marginBottom: 6 },
+  catImage: { width: "100%", height: 64, borderRadius: 12, marginBottom: 6, backgroundColor: colors.surfaceMuted },
   catName: { fontSize: 14, fontWeight: "700", color: colors.textMain, lineHeight: 18 },
   catCount: { fontSize: 11, color: colors.primary, fontWeight: "700", marginTop: 4 },
   viewAll: {
