@@ -569,6 +569,41 @@ async def verify_register_otp(payload: VerifyOtpIn):
     return {"ok": True, "signup_token": signup_token, "phone": phone, "expires_in_minutes": 15}
 
 
+@api.post("/auth/demo-login", response_model=AuthOut)
+async def demo_login():
+    """One-tap demo login for showcasing the app in any environment (dev or prod).
+    Returns a JWT for the seeded demo user. Resets the demo user's cart so each
+    demo session starts fresh. No credentials required."""
+    demo_id = "demo-user-001"
+    user = await db.users.find_one({"id": demo_id}, {"_id": 0, "password_hash": 0})
+    if not user:
+        # Auto-provision if seeding hasn't run yet (defensive; startup handler
+        # already seeds this user idempotently).
+        user_doc = {
+            "id": demo_id,
+            "username": "demo",
+            "phone": "+355690000000",
+            "full_name": "Demo Customer",
+            "email": "demo@bharatbazaar.com",
+            "language": "en",
+            "currency": "LEK",
+            "password_hash": hash_pw(secrets.token_hex(16)),
+            "addresses": [],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "is_demo": True,
+        }
+        await db.users.insert_one(user_doc)
+        user = {k: v for k, v in user_doc.items() if k != "password_hash"}
+    # Reset the demo cart so every demo session starts clean.
+    await db.carts.update_one(
+        {"user_id": demo_id},
+        {"$set": {"items": [], "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    token = make_token(demo_id)
+    return {"token": token, "user": user}
+
+
 @api.post("/auth/register/set-password", response_model=AuthOut)
 async def set_password(payload: SetPasswordIn):
     try:

@@ -81,6 +81,21 @@ export default function Login() {
     }
   };
 
+  // ------------- One-tap demo login (works in dev & prod) -------------
+  const onDemoLogin = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await api.post<{ token: string; user: any }>("/auth/demo-login", {});
+      await setSession(res.token, res.user);
+      router.replace("/(tabs)");
+    } catch (e: any) {
+      setError(e?.message || t("error_generic"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ------------- Existing user login -------------
   const onLogin = async () => {
     setError(null);
@@ -245,6 +260,26 @@ export default function Login() {
             >
               <Text style={styles.ctaText}>{loading ? t("loading") : t("continue")}</Text>
               {!loading && <Ionicons name="arrow-forward" size={18} color="#fff" />}
+            </Pressable>
+
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>{t("or")}</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <Pressable
+              onPress={onDemoLogin}
+              disabled={loading}
+              style={[styles.demoCta, loading && { opacity: 0.6 }]}
+              testID="auth-demo-login-btn"
+            >
+              <Ionicons name="flash" size={18} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.demoCtaTitle}>{t("try_demo")}</Text>
+                <Text style={styles.demoCtaSub}>{t("try_demo_sub")}</Text>
+              </View>
+              <Ionicons name="arrow-forward" size={16} color={colors.primary} />
             </Pressable>
           </>
         )}
@@ -522,6 +557,22 @@ const styles = StyleSheet.create({
   ctaText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   resend: { padding: spacing.md, alignItems: "center" },
   resendText: { color: colors.primary, fontWeight: "600" },
+  dividerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: spacing.lg, marginBottom: spacing.md },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { fontSize: 11, fontWeight: "700", color: colors.textDisabled, textTransform: "uppercase", letterSpacing: 1 },
+  demoCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  demoCtaTitle: { color: colors.primary, fontWeight: "700", fontSize: 15 },
+  demoCtaSub: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
   demoBox: {
     marginTop: spacing.md,
     padding: spacing.md,
