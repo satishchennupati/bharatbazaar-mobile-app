@@ -11,7 +11,7 @@ import { api, resolveImageUrl, type Cart } from "@/src/lib/api";
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { colors, radius, spacing } from "@/src/theme";
 
-const FREE_MIN_LEK = 1500;
+const FREE_MIN_LEK = 2000;
 const DELIVERY_FEE_LEK = 99;
 const LEK_PER_EUR = 100;
 

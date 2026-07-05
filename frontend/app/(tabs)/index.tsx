@@ -10,6 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, resolveImageUrl, type Category, type Product } from "@/src/lib/api";
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { ProductAddButton } from "@/src/components/product-add-button";
+import { AnimatedPromoBanner } from "@/src/components/animated-promo-banner";
 import { colors, radius, spacing } from "@/src/theme";
 
 export default function Home() {
@@ -106,10 +107,12 @@ export default function Home() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.primary} />}
         ListHeaderComponent={
           <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
-            <View style={styles.promoBanner} testID="home-promo-banner">
-              <Ionicons name="rocket" size={18} color="#fff" />
-              <Text style={styles.promoText}>{t("promo_banner")}</Text>
-            </View>
+            <AnimatedPromoBanner
+              headline={t("promo_headline")}
+              amount={t("promo_amount")}
+              sub={t("promo_sub")}
+              testID="home-promo-banner"
+            />
             <Text style={styles.sectionTitle}>{t("shop_by_category")}</Text>
             <Text style={styles.sectionSub}>{t("select_category")}</Text>
             <View style={styles.catGrid}>
