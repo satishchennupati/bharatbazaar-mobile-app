@@ -21,7 +21,17 @@ A React Native Expo mobile app for **Bharat Bazaar** (companion to mybazaarcart.
 5. **Category browse / search** — `/category/[slug]` and `/category/search?q=`.
 6. **Product detail** — emoji hero, name, price, description, tags, qty selector, add to cart.
 7. **Cart** — list items, qty edit, remove, "add X more for FREE delivery" hint, subtotal/fee/total breakdown.
-8. **Checkout** — delivery address form, COD-only payment, place order.
+8. **Checkout** — segmented address entry (**Manual** or **Pick on map**) with structured fields:
+   - Country (dropdown of 90+ countries with flag + dial code, searchable)
+   - State / Qark (dropdown for Albania: 12 qarks; free text elsewhere)
+   - City / Bashkia (dropdown populated from selected qark for Albania; free text elsewhere)
+   - Area (Lagje) — free text
+   - Landmark (Pranë / Afër) — free text
+   - Postal code (optional)
+   - Phone (with country dial hint)
+   - WhatsApp number (optional)
+   - Order note (optional)
+   COD-only payment, place order, address persisted to user profile on first save.
 9. **Order success** — order ID + ETA.
 10. **Orders history** — past orders with status, items, total.
 11. **Profile** — user info, language switcher, currency switcher, saved addresses count, logout.

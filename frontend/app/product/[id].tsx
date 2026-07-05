@@ -9,17 +9,16 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api, resolveImageUrl, type Product } from "@/src/lib/api";
 import { useApp, formatPrice } from "@/src/store/app-context";
+import { ProductAddButton } from "@/src/components/product-add-button";
 import { colors, radius, spacing } from "@/src/theme";
 
 export default function ProductDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { t, currency, setCartCount } = useApp();
+  const { t, currency, applyCart, cartQtyMap } = useApp();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const [qty, setQty] = useState(1);
-  const [adding, setAdding] = useState(false);
-  const [added, setAdded] = useState(false);
+  const cartQty = product ? (cartQtyMap[product.id] || 0) : 0;
 
   useEffect(() => {
     api
@@ -31,15 +30,17 @@ export default function ProductDetail() {
 
   const add = async () => {
     if (!product) return;
-    setAdding(true);
     try {
-      const c = await api.post<{ count: number }>("/cart", { product_id: product.id, qty }, true);
-      setCartCount(c.count || 0);
-      setAdded(true);
-      setTimeout(() => setAdded(false), 1500);
-    } finally {
-      setAdding(false);
-    }
+      const c = await api.post<{ items: any[]; count: number }>("/cart", { product_id: product.id, qty: 1 }, true);
+      applyCart(c.items, c.count);
+    } catch {}
+  };
+  const setQtyRemote = async (qty: number) => {
+    if (!product) return;
+    try {
+      const c = await api.patch<{ items: any[]; count: number }>(`/cart/${product.id}`, { qty });
+      applyCart(c.items, c.count);
+    } catch {}
   };
 
   if (loading) {
@@ -90,19 +91,17 @@ export default function ProductDetail() {
         </View>
       </ScrollView>
       <View style={styles.footer}>
-        <View style={styles.qty}>
-          <Pressable onPress={() => setQty((q) => Math.max(1, q - 1))} style={styles.qtyBtn} testID="prod-qty-dec">
-            <Ionicons name="remove" size={18} color={colors.primary} />
-          </Pressable>
-          <Text style={styles.qtyVal}>{qty}</Text>
-          <Pressable onPress={() => setQty((q) => q + 1)} style={styles.qtyBtn} testID="prod-qty-inc">
-            <Ionicons name="add" size={18} color={colors.primary} />
-          </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.footerPriceLabel}>Price</Text>
+          <Text style={styles.footerPrice}>{formatPrice(product.price_lek, product.price_eur, currency)}</Text>
         </View>
-        <Pressable onPress={add} disabled={adding} style={[styles.cta, (adding || added) && { opacity: 0.7 }]} testID="prod-add-btn">
-          <Ionicons name={added ? "checkmark" : "cart"} size={18} color="#fff" />
-          <Text style={styles.ctaText}>{added ? t("added") : t("add")}</Text>
-        </Pressable>
+        <ProductAddButton
+          qty={cartQty}
+          onAdd={add}
+          onIncrement={() => setQtyRemote(cartQty + 1)}
+          onDecrement={() => setQtyRemote(Math.max(0, cartQty - 1))}
+          productId={product.id}
+        />
       </View>
     </SafeAreaView>
   );
@@ -127,12 +126,9 @@ const styles = StyleSheet.create({
   tagText: { fontSize: 11, color: colors.primary, fontWeight: "600" },
   footer: {
     position: "absolute", left: 0, right: 0, bottom: 0,
-    flexDirection: "row", gap: 10, padding: spacing.lg,
+    flexDirection: "row", gap: 12, padding: spacing.lg, alignItems: "center",
     backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border,
   },
-  qty: { flexDirection: "row", alignItems: "center", backgroundColor: colors.primaryLight, borderRadius: radius.lg, paddingHorizontal: 6, gap: 6 },
-  qtyBtn: { width: 36, height: 44, alignItems: "center", justifyContent: "center" },
-  qtyVal: { minWidth: 24, textAlign: "center", fontWeight: "700", color: colors.primary, fontSize: 16 },
-  cta: { flex: 1, backgroundColor: colors.primary, borderRadius: radius.lg, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 },
-  ctaText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  footerPriceLabel: { fontSize: 11, color: colors.textMuted, textTransform: "uppercase", letterSpacing: 0.5 },
+  footerPrice: { fontSize: 22, fontWeight: "700", color: colors.textMain },
 });

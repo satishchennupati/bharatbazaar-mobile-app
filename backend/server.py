@@ -374,12 +374,21 @@ class AuthOut(BaseModel):
 
 class AddressIn(BaseModel):
     label: str = "Home"
-    line1: str
+    line1: str = ""
     line2: str = ""
-    city: str
+    city: str = ""
+    state: str = ""  # Qark / State / Region
+    area: str = ""  # Lagje / Area / Neighborhood
+    landmark: str = ""  # Pranë / Afër
     postal_code: str = ""
     country: str = "Albania"
+    country_code: str = "AL"
     phone: str = ""
+    whatsapp: str = ""  # optional WhatsApp number
+    entry_mode: str = "manual"  # "manual" or "map"
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    formatted_address: str = ""
 
 
 class CartItemIn(BaseModel):
