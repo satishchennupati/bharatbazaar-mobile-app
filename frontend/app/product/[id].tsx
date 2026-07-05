@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-import { api, type Product } from "@/src/lib/api";
+import { api, resolveImageUrl, type Product } from "@/src/lib/api";
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { colors, radius, spacing } from "@/src/theme";
 
@@ -67,7 +67,7 @@ export default function ProductDetail() {
         </View>
         <View style={styles.hero}>
           {product.image_url ? (
-            <Image source={{ uri: product.image_url }} style={styles.heroImg} resizeMode="contain" />
+            <Image source={{ uri: resolveImageUrl(product.image_url) }} style={styles.heroImg} resizeMode="contain" />
           ) : (
             <Text style={styles.heroEmoji}>{product.image_emoji}</Text>
           )}

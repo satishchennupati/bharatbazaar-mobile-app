@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-import { api, type Category, type Product } from "@/src/lib/api";
+import { api, resolveImageUrl, type Category, type Product } from "@/src/lib/api";
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { colors, radius, spacing } from "@/src/theme";
 
@@ -171,7 +171,7 @@ function ProductCard({
     <Pressable style={styles.prodCard} onPress={onPress} testID={`product-card-${p.id}`}>
       <View style={styles.prodImage}>
         {p.image_url ? (
-          <Image source={{ uri: p.image_url }} style={styles.prodImg} resizeMode="contain" />
+          <Image source={{ uri: resolveImageUrl(p.image_url) }} style={styles.prodImg} resizeMode="contain" />
         ) : (
           <Text style={styles.prodEmoji}>{p.image_emoji}</Text>
         )}

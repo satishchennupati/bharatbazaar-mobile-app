@@ -29,9 +29,11 @@ from pathlib import Path
 from typing import Annotated, List, Literal, Optional
 
 import bcrypt
+import httpx
 import jwt
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI, File, Header, HTTPException, Query, UploadFile, status
+from fastapi.staticfiles import StaticFiles
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
 from starlette.middleware.cors import CORSMiddleware
@@ -72,6 +74,11 @@ if TWILIO_SID and TWILIO_TOKEN:
 OTP_LENGTH = int(os.environ.get("OTP_LENGTH", "6"))
 OTP_EXPIRY_MINUTES = int(os.environ.get("OTP_EXPIRY_MINUTES", "10"))
 ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "")
+GOOGLE_DRIVE_API_KEY = os.environ.get("GOOGLE_DRIVE_API_KEY", "")
+
+STATIC_DIR = ROOT_DIR / "static"
+PRODUCT_IMG_DIR = STATIC_DIR / "products"
+PRODUCT_IMG_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ------------------------------------------------------------------
@@ -804,6 +811,77 @@ async def admin_import_products(
     return {"ok": True, **result}
 
 
+# ------------------ Google Drive → local static sync ------------------
+def _extract_drive_id(url: str) -> Optional[str]:
+    if not url:
+        return None
+    m = re.search(r"/d/([A-Za-z0-9_-]+)", url) or re.search(r"[?&]id=([A-Za-z0-9_-]+)", url)
+    return m.group(1) if m else None
+
+
+async def _download_drive_file(file_id: str) -> Optional[bytes]:
+    """Download a public Google Drive file via API v3 alt=media."""
+    if not GOOGLE_DRIVE_API_KEY:
+        return None
+    url = f"https://www.googleapis.com/drive/v3/files/{file_id}"
+    params = {"alt": "media", "key": GOOGLE_DRIVE_API_KEY}
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        r = await client.get(url, params=params)
+        if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/"):
+            return r.content
+        logger.warning("Drive download failed for %s: %s %s", file_id, r.status_code, r.text[:200])
+        return None
+
+
+async def _sync_one_product_image(product: dict) -> str:
+    """Download drive image for one product, save to disk, update DB. Returns status."""
+    src = product.get("image_url") or ""
+    if not src or "drive.google" not in src and "googleusercontent" not in src:
+        return "skipped-no-drive"
+    fid = _extract_drive_id(src)
+    if not fid:
+        return "skipped-no-id"
+    ext = "jpg"
+    fname = f"{product.get('product_code') or product['id']}.{ext}"
+    fpath = PRODUCT_IMG_DIR / fname
+    if fpath.exists() and fpath.stat().st_size > 500:
+        # already synced — just make sure DB points to local
+        new_url = f"/api/static/products/{fname}"
+        if product.get("image_url") != new_url:
+            await db.products.update_one({"id": product["id"]}, {"$set": {"image_url": new_url}})
+        return "cached"
+    data = await _download_drive_file(fid)
+    if not data:
+        return "download-failed"
+    fpath.write_bytes(data)
+    new_url = f"/api/static/products/{fname}"
+    await db.products.update_one({"id": product["id"]}, {"$set": {"image_url": new_url}})
+    return "synced"
+
+
+@api.post("/admin/products/sync-images")
+async def admin_sync_product_images(
+    limit: int = Query(500, ge=1, le=2000),
+    x_admin_secret: Annotated[Optional[str], Header(alias="X-Admin-Secret")] = None,
+):
+    _check_admin(x_admin_secret)
+    if not GOOGLE_DRIVE_API_KEY:
+        raise HTTPException(status_code=500, detail="GOOGLE_DRIVE_API_KEY not configured")
+    # find products whose image_url still points to Google Drive
+    cur = db.products.find(
+        {"image_url": {"$regex": "google", "$options": "i"}},
+        {"_id": 0, "id": 1, "product_code": 1, "image_url": 1, "name": 1},
+    ).limit(limit)
+    counts = {"synced": 0, "cached": 0, "download-failed": 0, "skipped-no-id": 0, "skipped-no-drive": 0}
+    failed: list = []
+    async for prod in cur:
+        status = await _sync_one_product_image(prod)
+        counts[status] = counts.get(status, 0) + 1
+        if status == "download-failed":
+            failed.append({"id": prod["id"], "name": prod.get("name")})
+    return {"ok": True, "counts": counts, "failed_sample": failed[:10]}
+
+
 # ------------------------------------------------------------------
 # Startup: seed data
 # ------------------------------------------------------------------
@@ -888,6 +966,7 @@ async def shutdown():
 
 
 app.include_router(api)
+app.mount("/api/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,

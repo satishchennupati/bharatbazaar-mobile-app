@@ -6,6 +6,14 @@ import { storage } from "@/src/utils/storage";
 const BASE = process.env.EXPO_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ?? "";
 const API = `${BASE}/api`;
 
+/** Resolve product image URLs. Server may return relative paths like `/api/static/...`. */
+export function resolveImageUrl(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (url.startsWith("/")) return `${BASE}${url}`;
+  return url;
+}
+
 async function authHeaders(): Promise<Record<string, string>> {
   const tk = await storage.secureGet("mbc_token", "");
   return tk ? { Authorization: `Bearer ${String(tk)}` } : {};

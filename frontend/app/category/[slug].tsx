@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-import { api, type Category, type Product } from "@/src/lib/api";
+import { api, resolveImageUrl, type Category, type Product } from "@/src/lib/api";
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { colors, radius, spacing } from "@/src/theme";
 
@@ -92,7 +92,7 @@ export default function CategoryScreen() {
             <Pressable style={styles.card} onPress={() => router.push(`/product/${item.id}`)} testID={`cat-prod-${item.id}`}>
               <View style={styles.img}>
                 {item.image_url ? (
-                  <Image source={{ uri: item.image_url }} style={styles.imgReal} resizeMode="contain" />
+                  <Image source={{ uri: resolveImageUrl(item.image_url) }} style={styles.imgReal} resizeMode="contain" />
                 ) : (
                   <Text style={styles.imgEmoji}>{item.image_emoji}</Text>
                 )}

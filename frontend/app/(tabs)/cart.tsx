@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-import { api, type Cart } from "@/src/lib/api";
+import { api, resolveImageUrl, type Cart } from "@/src/lib/api";
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { colors, radius, spacing } from "@/src/theme";
 
@@ -111,7 +111,7 @@ export default function CartScreen() {
               <View style={styles.row} testID={`cart-item-${item.product_id}`}>
                 <View style={styles.imgBox}>
                   {item.image_url ? (
-                    <Image source={{ uri: item.image_url }} style={styles.imgReal} resizeMode="contain" />
+                    <Image source={{ uri: resolveImageUrl(item.image_url) }} style={styles.imgReal} resizeMode="contain" />
                   ) : (
                     <Text style={styles.imgEmoji}>{item.image_emoji}</Text>
                   )}
