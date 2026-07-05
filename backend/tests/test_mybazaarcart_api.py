@@ -18,7 +18,7 @@ def session():
 
 @pytest.fixture(scope="module")
 def demo_token(session):
-    r = session.post(f"{API}/auth/login", json={"username": "demo", "password": "demo1234"})
+    r = session.post(f"{API}/auth/login", json={"phone": "+355690000000", "password": "demo1234"})
     assert r.status_code == 200, r.text
     return r.json()["token"]
 
@@ -92,16 +92,16 @@ def test_product_not_found(session):
 
 # ---------- Auth ----------
 def test_login_success(session):
-    r = session.post(f"{API}/auth/login", json={"username": "demo", "password": "demo1234"})
+    r = session.post(f"{API}/auth/login", json={"phone": "+355690000000", "password": "demo1234"})
     assert r.status_code == 200
     body = r.json()
     assert "token" in body and "user" in body
-    assert body["user"]["username"] == "demo"
+    assert body["user"]["phone"] == "+355690000000"
     assert "password_hash" not in body["user"]
 
 
 def test_login_wrong(session):
-    r = session.post(f"{API}/auth/login", json={"username": "demo", "password": "wrong"})
+    r = session.post(f"{API}/auth/login", json={"phone": "+355690000000", "password": "wrong"})
     assert r.status_code == 401
 
 

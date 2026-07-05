@@ -1,0 +1,45 @@
+{
+  "summary": "Phone-first auth backend regression — 15/15 tests PASSED. Covered: (1) POST /api/auth/check-phone → exists:true for seeded +355690000000, exists:false for fresh +355 number, 400 for non-E.164 payload '355690000000'; (2) POST /api/auth/login with {phone,password} → 200 + JWT + user for +355690000000/demo1234 (no password_hash / _id in response), 401 for wrong password, 422 for legacy {username,password} payload (schema now requires 'phone'); (3) OTP happy path with a fresh +355 number → send-otp returns ok=true & phone (Twilio API returns 201 in this env, so no debug_code — code retrieved directly from db.otp_sessions via shared Mongo), verify-otp returns 200 + signup_token, verify-otp with wrong code returns 400, set-password creates the user and returns {token,user} with full_name/language/currency echoed and password_hash stripped, subsequent login with new phone+password succeeds, reusing same signup_token after user exists returns 409, malformed signup_token returns 400; (4) 5+ wrong OTP verify attempts eventually return 429; (5) send-otp against already-registered demo phone returns 409. Backend logs confirm expected status-code sequence (200/400/200/200/409/400/…/429/409). No critical issues; one minor observability note about debug_code fallback.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/auth/register/send-otp",
+        "issue": "debug_code fallback in the response only triggers when Twilio raises TwilioRestException. In this environment Twilio actually accepts the (synthetic) +355 number and returns 201, so debug_code is never exposed — meaning an external QA/tester without Mongo access cannot complete the OTP signup flow with a random test number. Consider (a) adding an env flag like OTP_DEV_EXPOSE_CODE=1 that always returns debug_code, or (b) documenting a Twilio-verified test number in /app/memory/test_credentials.md. In-container tests worked around this by reading db.otp_sessions directly."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phone_auth.py",
+    "/app/backend/tests/test_mybazaarcart_api.py",
+    "/app/test_reports/pytest/phone_auth_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Expose debug_code behind an env flag (e.g. OTP_DEV_EXPOSE_CODE) so external QA can e2e-test the signup flow without Mongo shell access.",
+    "(Nit) /app/backend/server.py:322 — index on `username` is still enforced (create_index('username', unique=True)) even though signup no longer collects usernames. Derived value is `phone.replace('+','u')` which is unique-per-phone, so it works, but consider dropping the legacy `username` unique index if the field is truly deprecated.",
+    "(Nit) /app/backend/server.py:263 check-phone accepts anything starting with '+' — an empty '+' or '+abc' would still pass the startswith check and fall through to the DB lookup. Consider a stricter regex like ^\\+[1-9]\\d{6,14}$ if you want tighter E.164 validation."
+  ],
+  "critical_code_review_comments": [
+    "server.py ~660 lines — still readable, but approaching the 700-line threshold; auth block is a good split candidate.",
+    "OTP session lifecycle is correct: delete_many before insert on send-otp, delete on success, delete on expiry, increment on wrong code, 5-attempt cap enforced.",
+    "signup_token is a short-lived (15 min) typed JWT ({typ:'signup'}) — good; set-password re-checks 'phone already exists' inside the token flow, closing the race between OTP verify and password submit.",
+    "MongoDB _id consistently excluded via {'_id': 0} projections; login response also pops _id and password_hash defensively.",
+    "All env vars (MONGO_URL, DB_NAME, JWT_SECRET, TWILIO_*) read via os.environ without hardcoded fallbacks — good."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phone_auth.py (new — 15 phone-first auth tests)",
+    "/app/backend/tests/test_mybazaarcart_api.py (migrated demo_token fixture + login tests from username→phone so the legacy suite stays green)"
+  ],
+  "success_rate": {"backend": "100% (15/15 phone-auth tests PASSED)", "frontend": "not tested (backend-only pass)"},
+  "seed_data_creation": "No new persistent seed data. Each OTP-signup test uses a fresh +35569XXXXXXX number (millisecond-derived) so it never collides with the seeded demo user. Test users created during set-password remain in db.users (id, phone, derived username u355…); if needed the main agent can prune with db.users.delete_many({phone: {$regex: '^\\+35569', $ne: '+355690000000'}}).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend public URL: https://bharat-app-8.preview.emergentagent.com. Demo user login is now {phone:'+355690000000', password:'demo1234'} (NOT {username:'demo'}) — old username payload returns 422. Twilio creds in /app/backend/.env are LIVE and accept synthetic +355 numbers (returns 201), so the send-otp response will NOT contain debug_code — retrieve OTP by reading db.mybazaarcart.otp_sessions directly (see test_phone_auth.py::_otp_code_for). Both test files (test_phone_auth.py, test_mybazaarcart_api.py) are now aligned to the phone-first schema. Run all: `cd /app && python -m pytest backend/tests/ -v`.",
+  "rca_of_issue": "N/A — no bugs found. The one nuance: send-otp does not expose debug_code when Twilio successfully accepts the request (which is the case for arbitrary +355 numbers in this env). Backend code is correct; the debug_code branch is purely a mock-mode escape hatch."
+}

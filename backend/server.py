@@ -148,8 +148,12 @@ class BannerOut(BaseModel):
 
 
 class LoginIn(BaseModel):
-    username: str = Field(..., min_length=2)
+    phone: str = Field(..., min_length=8)
     password: str = Field(..., min_length=4)
+
+
+class CheckPhoneIn(BaseModel):
+    phone: str = Field(..., min_length=8)
 
 
 class SendOtpIn(BaseModel):
@@ -159,7 +163,10 @@ class SendOtpIn(BaseModel):
 class VerifyOtpIn(BaseModel):
     phone: str
     code: str
-    username: str = Field(..., min_length=3)
+
+
+class SetPasswordIn(BaseModel):
+    signup_token: str
     password: str = Field(..., min_length=6)
     full_name: str = ""
     email: Optional[EmailStr] = None
@@ -253,12 +260,21 @@ async def get_product(product_id: str):
 
 
 # ---------- Auth ----------
+@api.post("/auth/check-phone")
+async def check_phone(payload: CheckPhoneIn):
+    phone = payload.phone.strip()
+    if not phone.startswith("+"):
+        raise HTTPException(status_code=400, detail="Phone must be E.164 (e.g. +355...)")
+    user = await db.users.find_one({"phone": phone}, {"_id": 0, "id": 1})
+    return {"exists": bool(user), "phone": phone}
+
+
 @api.post("/auth/login", response_model=AuthOut)
 async def login(payload: LoginIn):
-    uname = payload.username.strip().lower()
-    user = await db.users.find_one({"username": uname})
+    phone = payload.phone.strip()
+    user = await db.users.find_one({"phone": phone})
     if not user or not check_pw(payload.password, user.get("password_hash", "")):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+        raise HTTPException(status_code=401, detail="Invalid phone or password")
     token = make_token(user["id"])
     user.pop("_id", None)
     user.pop("password_hash", None)
@@ -320,13 +336,12 @@ async def send_register_otp(payload: SendOtpIn):
     return resp
 
 
-@api.post("/auth/register/verify-otp", response_model=AuthOut)
+@api.post("/auth/register/verify-otp")
 async def verify_register_otp(payload: VerifyOtpIn):
     phone = payload.phone.strip()
     session = await db.otp_sessions.find_one({"phone": phone})
     if not session:
         raise HTTPException(status_code=400, detail="No OTP requested for this phone")
-    # expires_at stored as datetime; compare in utc
     exp = session.get("expires_at")
     if exp and exp.tzinfo is None:
         exp = exp.replace(tzinfo=timezone.utc)
@@ -340,14 +355,37 @@ async def verify_register_otp(payload: VerifyOtpIn):
         await db.otp_sessions.update_one({"phone": phone}, {"$inc": {"attempts": 1}})
         raise HTTPException(status_code=400, detail="Invalid OTP")
 
-    # Create user
-    uname = payload.username.strip().lower()
-    if await db.users.find_one({"username": uname}):
-        raise HTTPException(status_code=409, detail="Username already taken")
+    # OTP is valid — issue short-lived signup token; DO NOT create the user yet.
+    signup_payload = {
+        "phone": phone,
+        "typ": "signup",
+        "iat": datetime.now(timezone.utc),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=15),
+    }
+    signup_token = jwt.encode(signup_payload, JWT_SECRET, algorithm=JWT_ALGO)
+    await db.otp_sessions.delete_one({"phone": phone})
+    return {"ok": True, "signup_token": signup_token, "phone": phone, "expires_in_minutes": 15}
+
+
+@api.post("/auth/register/set-password", response_model=AuthOut)
+async def set_password(payload: SetPasswordIn):
+    try:
+        data = jwt.decode(payload.signup_token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=400, detail="Signup session expired, please verify OTP again")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=400, detail="Invalid signup token")
+    if data.get("typ") != "signup":
+        raise HTTPException(status_code=400, detail="Invalid signup token")
+    phone = data["phone"]
+    if await db.users.find_one({"phone": phone}):
+        raise HTTPException(status_code=409, detail="Account already exists for this phone. Please login.")
     user_id = secrets.token_hex(8)
+    # username is derived from phone (retained for backward compat with existing indexes)
+    derived_username = phone.replace("+", "u")
     user_doc = {
         "id": user_id,
-        "username": uname,
+        "username": derived_username,
         "phone": phone,
         "full_name": payload.full_name,
         "email": payload.email,
@@ -358,7 +396,6 @@ async def verify_register_otp(payload: VerifyOtpIn):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(user_doc)
-    await db.otp_sessions.delete_one({"phone": phone})
     user_doc.pop("_id", None)
     user_doc.pop("password_hash", None)
     token = make_token(user_id)
