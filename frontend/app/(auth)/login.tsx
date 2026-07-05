@@ -31,7 +31,7 @@ const COUNTRIES: Country[] = [
   { code: "AL", dial: "+355", name: "Albania", flag: "🇦🇱" },
 ];
 
-type Step = "phone" | "password" | "otp" | "create-password";
+type Step = "phone" | "password" | "get-otp" | "otp" | "create-password";
 
 export default function Login() {
   const router = useRouter();
@@ -71,13 +71,8 @@ export default function Login() {
       if (res.exists) {
         setStep("password");
       } else {
-        // trigger OTP for new user
-        const otp = await api.post<{ ok: boolean; debug_code?: string }>(
-          "/auth/register/send-otp",
-          { phone: fullPhone },
-        );
-        if (otp.debug_code) setDebugCode(otp.debug_code);
-        setStep("otp");
+        // New user — show a review step with an explicit "Get OTP" button
+        setStep("get-otp");
       }
     } catch (e: any) {
       setError(e?.message || t("error_generic"));
@@ -183,7 +178,8 @@ export default function Login() {
     setError(null);
     if (step === "phone") return;
     if (step === "password") setStep("phone");
-    else if (step === "otp") setStep("phone");
+    else if (step === "get-otp") setStep("phone");
+    else if (step === "otp") setStep("get-otp");
     else if (step === "create-password") setStep("otp");
   };
 
@@ -281,6 +277,44 @@ export default function Login() {
               testID="auth-login-btn"
             >
               <Text style={styles.ctaText}>{loading ? t("loading") : t("login")}</Text>
+            </Pressable>
+          </>
+        )}
+
+        {step === "get-otp" && (
+          <>
+            <Text style={styles.title}>{t("signup")}</Text>
+            <Text style={styles.sub}>
+              We&apos;ll send a verification code to{" "}
+              <Text style={{ color: colors.textMain, fontWeight: "600" }}>{fullPhone}</Text>
+            </Text>
+            {error && <Text style={styles.error}>{error}</Text>}
+            <Pressable
+              onPress={async () => {
+                setError(null);
+                setLoading(true);
+                try {
+                  const otp = await api.post<{ ok: boolean; debug_code?: string }>(
+                    "/auth/register/send-otp",
+                    { phone: fullPhone },
+                  );
+                  if (otp.debug_code) setDebugCode(otp.debug_code);
+                  setStep("otp");
+                } catch (e: any) {
+                  setError(e?.message || t("error_generic"));
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              disabled={loading}
+              style={[styles.cta, loading && { opacity: 0.6 }]}
+              testID="auth-get-otp-btn"
+            >
+              <Text style={styles.ctaText}>{loading ? t("loading") : "Get OTP"}</Text>
+              {!loading && <Ionicons name="paper-plane" size={18} color="#fff" />}
+            </Pressable>
+            <Pressable onPress={() => setStep("phone")} style={styles.resend} testID="auth-change-phone">
+              <Text style={styles.resendText}>Change number</Text>
             </Pressable>
           </>
         )}

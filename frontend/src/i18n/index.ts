@@ -3,7 +3,7 @@
  * Supported: en, hi, sq (Albanian), it, el (Greek), fr, mk (Macedonian)
  */
 
-export type Lang = "en" | "hi" | "sq" | "it" | "el" | "fr" | "mk";
+export type Lang = "en" | "sq" | "hi" | "it" | "el" | "fr";
 
 export const LANGUAGES: { code: Lang; label: string; native: string }[] = [
   { code: "en", label: "English", native: "English" },
@@ -12,7 +12,6 @@ export const LANGUAGES: { code: Lang; label: string; native: string }[] = [
   { code: "it", label: "Italian", native: "Italiano" },
   { code: "el", label: "Greek", native: "Ελληνικά" },
   { code: "fr", label: "French", native: "Français" },
-  { code: "mk", label: "Macedonian", native: "Македонски" },
 ];
 
 export type Currency = "LEK" | "EUR";
@@ -276,26 +275,11 @@ const fr: Dict = {
   language: "Langue", currency: "Devise", logout: "Déconnexion",
 };
 
-const mk: Dict = {
-  ...en,
-  tagline: "Твојот пазар, сега во твојот џеб",
-  pick_language: "Изберете јазик", pick_currency: "Изберете валута", continue: "Продолжи",
-  tab_home: "Дома", tab_categories: "Категории", tab_cart: "Корпа", tab_orders: "Нарачки", tab_profile: "Профил",
-  promo_banner: "Бесплатна достава над 1500 L · Плаќање при достава",
-  shop_by_category: "Купувај по категорија", select_category: "Избери категорија",
-  coming_soon: "Наскоро", search_placeholder: "Пребарувај производи...",
-  add: "Додај", your_cart: "Твојата корпа", empty_cart: "Корпата е празна",
-  subtotal: "Подзбир", delivery_fee: "Цена за достава", free: "БЕСПЛАТНО", total: "Вкупно",
-  proceed_checkout: "Кон плаќање", checkout: "Плаќање",
-  delivery_address: "Адреса за достава", payment_method: "Начин на плаќање",
-  cod: "Плаќање при достава", place_order: "Нарачај",
-  order_placed: "Нарачката е поставена!", continue_shopping: "Продолжи купување", view_orders: "Мои нарачки",
-  login: "Најава", signup: "Регистрација", username: "Корисничко име", password: "Лозинка",
-  send_otp: "Испрати OTP", verify: "Потврди", resend_otp: "Препрати",
-  language: "Јазик", currency: "Валута", logout: "Одјави се",
-};
+const mk_STRIP_ME = null;
+// (mk dictionary removed — Macedonian not supported)
 
-export const DICTS: Record<Lang, Dict> = { en, sq, hi, it, el, fr, mk };
+
+export const DICTS: Record<Lang, Dict> = { en, sq, hi, it, el, fr };
 
 export function t(lang: Lang, key: string, vars?: Record<string, string | number>): string {
   const d = DICTS[lang] || en;

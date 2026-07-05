@@ -35,7 +35,7 @@ from starlette.middleware.cors import CORSMiddleware
 from twilio.base.exceptions import TwilioRestException
 from twilio.rest import Client as TwilioClient
 
-from seed_data import CATEGORIES_SEED, PRODUCTS_SEED
+from seed_data import CATEGORIES_SEED, PRODUCTS_SEED, SEED_VERSION
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -601,6 +601,19 @@ async def get_order(order_id: str, user: dict = Depends(get_current_user)):
 # ------------------------------------------------------------------
 @app.on_event("startup")
 async def seed_db():
+    # Version-gated migration: if the stored catalog version doesn't match the
+    # current seed, wipe categories + products and re-seed. Users, carts, and
+    # orders are preserved across catalog migrations.
+    meta = await db.meta.find_one({"key": "catalog_seed"})
+    current_version = (meta or {}).get("version")
+    need_reseed = current_version != SEED_VERSION
+    if need_reseed:
+        logger.info("Catalog seed version mismatch (%s -> %s); re-seeding", current_version, SEED_VERSION)
+        await db.categories.delete_many({})
+        await db.products.delete_many({})
+        # Also clear carts so items referencing old product ids don't linger
+        await db.carts.update_many({}, {"$set": {"items": []}})
+
     cat_count = await db.categories.count_documents({})
     if cat_count == 0:
         await db.categories.insert_many([dict(c) for c in CATEGORIES_SEED])
@@ -609,10 +622,16 @@ async def seed_db():
     if prod_count == 0:
         await db.products.insert_many([dict(p) for p in PRODUCTS_SEED])
         logger.info("Seeded %d products", len(PRODUCTS_SEED))
-        # update category counts
         for c in CATEGORIES_SEED:
             n = sum(1 for p in PRODUCTS_SEED if p["category_slug"] == c["slug"])
             await db.categories.update_one({"slug": c["slug"]}, {"$set": {"product_count": n}})
+    if need_reseed:
+        await db.meta.update_one(
+            {"key": "catalog_seed"},
+            {"$set": {"key": "catalog_seed", "version": SEED_VERSION,
+                      "applied_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True,
+        )
     await db.users.create_index("username", unique=True)
     await db.users.create_index("phone", unique=True, sparse=True)
     await db.carts.create_index("user_id", unique=True)

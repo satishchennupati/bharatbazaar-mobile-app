@@ -1,25 +1,23 @@
 /**
- * Onboarding: pick language + currency before login.
+ * Onboarding: language picker (first launch).
  */
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View, Image } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useApp } from "@/src/store/app-context";
-import { CURRENCIES, LANGUAGES, type Currency, type Lang } from "@/src/i18n";
+import { LANGUAGES, type Lang } from "@/src/i18n";
 import { colors, radius, spacing } from "@/src/theme";
 
 export default function Onboarding() {
   const router = useRouter();
-  const { setOnboarded, setLang, setCurrency, lang, currency, t } = useApp();
+  const { setOnboarded, setLang, lang, t } = useApp();
   const [selLang, setSelLang] = useState<Lang>(lang);
-  const [selCur, setSelCur] = useState<Currency>(currency);
 
   const onContinue = async () => {
     await setLang(selLang);
-    await setCurrency(selCur);
     await setOnboarded(true);
     router.replace("/(auth)/login");
   };
@@ -34,7 +32,7 @@ export default function Onboarding() {
         </View>
 
         <Text style={styles.sectionTitle} testID="onboard-lang-title">{t("pick_language")}</Text>
-        <View style={styles.grid}>
+        <View style={styles.list}>
           {LANGUAGES.map((l) => {
             const active = selLang === l.code;
             return (
@@ -42,30 +40,18 @@ export default function Onboarding() {
                 key={l.code}
                 onPress={() => setSelLang(l.code)}
                 testID={`onboard-lang-${l.code}`}
-                style={[styles.chip, active && styles.chipActive]}
+                style={[styles.row, active && styles.rowActive]}
               >
-                <Text style={[styles.chipNative, active && styles.chipNativeActive]}>{l.native}</Text>
-                <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{l.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <Text style={[styles.sectionTitle, { marginTop: spacing.xl }]} testID="onboard-cur-title">
-          {t("pick_currency")}
-        </Text>
-        <View style={styles.grid}>
-          {CURRENCIES.map((c) => {
-            const active = selCur === c.code;
-            return (
-              <Pressable
-                key={c.code}
-                onPress={() => setSelCur(c.code)}
-                testID={`onboard-cur-${c.code}`}
-                style={[styles.curChip, active && styles.chipActive]}
-              >
-                <Text style={[styles.curSymbol, active && styles.curSymbolActive]}>{c.symbol}</Text>
-                <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{c.label}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.rowNative, active && styles.rowNativeActive]}>{l.native}</Text>
+                  <Text style={[styles.rowLabel, active && styles.rowLabelActive]}>
+                    {l.label}
+                    {l.code === "en" ? "  ·  Default" : ""}
+                  </Text>
+                </View>
+                <View style={[styles.radio, active && styles.radioActive]}>
+                  {active && <View style={styles.radioDot} />}
+                </View>
               </Pressable>
             );
           })}
@@ -90,45 +76,34 @@ const styles = StyleSheet.create({
   brand: { fontSize: 28, fontWeight: "700", color: colors.textMain, letterSpacing: -0.5 },
   tagline: { fontSize: 14, color: colors.textMuted, marginTop: 4, textAlign: "center" },
   sectionTitle: { fontSize: 20, fontWeight: "600", color: colors.textMain, marginBottom: spacing.md },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  chip: {
+  list: { gap: spacing.sm },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.lg,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.base,
     paddingHorizontal: spacing.base,
-    width: "48%",
   },
-  chipActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryLight,
+  rowActive: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+  rowNative: { fontSize: 17, fontWeight: "700", color: colors.textMain },
+  rowNativeActive: { color: colors.primary },
+  rowLabel: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  rowLabelActive: { color: colors.primaryDark },
+  radio: {
+    width: 22, height: 22, borderRadius: 11,
+    borderWidth: 2, borderColor: colors.border,
+    alignItems: "center", justifyContent: "center",
   },
-  chipNative: { fontSize: 16, fontWeight: "700", color: colors.textMain },
-  chipNativeActive: { color: colors.primary },
-  chipLabel: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  chipLabelActive: { color: colors.primaryDark },
-  curChip: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.base,
-    width: "48%",
-    alignItems: "flex-start",
-  },
-  curSymbol: { fontSize: 24, fontWeight: "700", color: colors.textMain },
-  curSymbolActive: { color: colors.primary },
+  radioActive: { borderColor: colors.primary },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
   footer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
+    position: "absolute", left: 0, right: 0, bottom: 0,
     padding: spacing.lg,
     backgroundColor: colors.background,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopWidth: 1, borderTopColor: colors.border,
   },
   cta: {
     backgroundColor: colors.primary,
