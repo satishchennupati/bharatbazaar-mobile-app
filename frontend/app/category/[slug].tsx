@@ -9,12 +9,13 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api, resolveImageUrl, type Category, type Product } from "@/src/lib/api";
 import { useApp, formatPrice } from "@/src/store/app-context";
+import { ProductAddButton } from "@/src/components/product-add-button";
 import { colors, radius, spacing } from "@/src/theme";
 
 export default function CategoryScreen() {
   const router = useRouter();
   const { slug, q } = useLocalSearchParams<{ slug: string; q?: string }>();
-  const { t, currency, setCartCount } = useApp();
+  const { t, currency, applyCart, cartQtyMap } = useApp();
   const [products, setProducts] = useState<Product[]>([]);
   const [cat, setCat] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,8 +44,14 @@ export default function CategoryScreen() {
 
   const addToCart = async (p: Product) => {
     try {
-      const res = await api.post<{ count: number }>("/cart", { product_id: p.id, qty: 1 }, true);
-      setCartCount(res.count || 0);
+      const res = await api.post<{ items: any[]; count: number }>("/cart", { product_id: p.id, qty: 1 }, true);
+      applyCart(res.items, res.count);
+    } catch {}
+  };
+  const setQty = async (pid: string, qty: number) => {
+    try {
+      const c = await api.patch<{ items: any[]; count: number }>(`/cart/${pid}`, { qty });
+      applyCart(c.items, c.count);
     } catch {}
   };
 
@@ -96,16 +103,20 @@ export default function CategoryScreen() {
                 ) : (
                   <Text style={styles.imgEmoji}>{item.image_emoji}</Text>
                 )}
+                <View style={styles.stepperOverlay}>
+                  <ProductAddButton
+                    qty={cartQtyMap[item.id] || 0}
+                    onAdd={() => addToCart(item)}
+                    onIncrement={() => setQty(item.id, (cartQtyMap[item.id] || 0) + 1)}
+                    onDecrement={() => setQty(item.id, Math.max(0, (cartQtyMap[item.id] || 0) - 1))}
+                    productId={item.id}
+                    compact
+                  />
+                </View>
               </View>
               <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
               <Text style={styles.unit}>{item.unit || item.weight}</Text>
-              <View style={styles.footer}>
-                <Text style={styles.price}>{formatPrice(item.price_lek, item.price_eur, currency)}</Text>
-                <Pressable style={styles.addBtn} onPress={() => addToCart(item)} testID={`cat-add-${item.id}`}>
-                  <Ionicons name="add" size={16} color={colors.primary} />
-                  <Text style={styles.addBtnText}>{t("add")}</Text>
-                </Pressable>
-              </View>
+              <Text style={styles.price}>{formatPrice(item.price_lek, item.price_eur, currency)}</Text>
             </Pressable>
           )}
         />
@@ -126,7 +137,8 @@ const styles = StyleSheet.create({
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   emptyText: { fontSize: 15, color: colors.textMuted, marginTop: 8 },
   card: { flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.md },
-  img: { height: 96, backgroundColor: colors.surfaceMuted, borderRadius: radius.md, alignItems: "center", justifyContent: "center", marginBottom: 8 },
+  img: { height: 96, backgroundColor: colors.surfaceMuted, borderRadius: radius.md, alignItems: "center", justifyContent: "center", marginBottom: 8, position: "relative" },
+  stepperOverlay: { position: "absolute", right: 6, bottom: 6 },
   imgEmoji: { fontSize: 48 },
   imgReal: { width: "100%", height: "100%" },
   name: { fontSize: 13, fontWeight: "600", color: colors.textMain, lineHeight: 16 },
