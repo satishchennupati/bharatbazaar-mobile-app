@@ -75,6 +75,7 @@ OTP_LENGTH = int(os.environ.get("OTP_LENGTH", "6"))
 OTP_EXPIRY_MINUTES = int(os.environ.get("OTP_EXPIRY_MINUTES", "10"))
 ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "")
 GOOGLE_DRIVE_API_KEY = os.environ.get("GOOGLE_DRIVE_API_KEY", "")
+GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
 
 STATIC_DIR = ROOT_DIR / "static"
 PRODUCT_IMG_DIR = STATIC_DIR / "products"
@@ -786,6 +787,100 @@ async def get_order(order_id: str, user: dict = Depends(get_current_user)):
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     return order
+
+
+# ---------- Geo / address picker (Google Places proxy) ----------
+SERVICEABLE_COUNTRY_CODES = {"AL"}
+
+
+@api.get("/geo/autocomplete")
+async def geo_autocomplete(input: str = Query(..., min_length=2), country: str = Query("al")):
+    if not GOOGLE_MAPS_API_KEY:
+        raise HTTPException(status_code=500, detail="Maps API key not configured")
+    params = {
+        "input": input,
+        "key": GOOGLE_MAPS_API_KEY,
+        "components": f"country:{country.lower()}",
+        "language": "en",
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get("https://maps.googleapis.com/maps/api/place/autocomplete/json", params=params)
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail="Places autocomplete failed")
+    data = r.json()
+    preds = [
+        {
+            "place_id": p.get("place_id"),
+            "description": p.get("description"),
+            "main_text": (p.get("structured_formatting") or {}).get("main_text"),
+            "secondary_text": (p.get("structured_formatting") or {}).get("secondary_text"),
+        }
+        for p in data.get("predictions", [])
+    ]
+    return {"predictions": preds, "status": data.get("status")}
+
+
+@api.get("/geo/place-details")
+async def geo_place_details(place_id: str = Query(...)):
+    if not GOOGLE_MAPS_API_KEY:
+        raise HTTPException(status_code=500, detail="Maps API key not configured")
+    params = {
+        "place_id": place_id,
+        "key": GOOGLE_MAPS_API_KEY,
+        "fields": "formatted_address,geometry/location,address_components,name",
+        "language": "en",
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get("https://maps.googleapis.com/maps/api/place/details/json", params=params)
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail="Places details failed")
+    data = r.json()
+    result = data.get("result") or {}
+    loc = ((result.get("geometry") or {}).get("location") or {})
+    parts = {}
+    country_code = None
+    for comp in result.get("address_components", []):
+        types = comp.get("types", [])
+        if "country" in types:
+            country_code = comp.get("short_name")
+            parts["country"] = comp.get("long_name")
+        if "postal_code" in types:
+            parts["postal_code"] = comp.get("long_name")
+        if "locality" in types or "administrative_area_level_2" in types:
+            parts.setdefault("city", comp.get("long_name"))
+        if "route" in types:
+            parts.setdefault("street", comp.get("long_name"))
+        if "street_number" in types:
+            parts["street_number"] = comp.get("long_name")
+    line1 = " ".join([p for p in [parts.get("street_number"), parts.get("street")] if p]) or (result.get("name") or "")
+    serviceable = country_code in SERVICEABLE_COUNTRY_CODES
+    return {
+        "place_id": place_id,
+        "formatted_address": result.get("formatted_address"),
+        "lat": loc.get("lat"),
+        "lng": loc.get("lng"),
+        "country_code": country_code,
+        "country": parts.get("country"),
+        "city": parts.get("city"),
+        "postal_code": parts.get("postal_code", ""),
+        "line1": line1,
+        "serviceable": serviceable,
+        "unserviceable_reason": None if serviceable else "We currently deliver only within Albania.",
+    }
+
+
+@api.get("/geo/static-map")
+async def geo_static_map(lat: float = Query(...), lng: float = Query(...), zoom: int = Query(15, ge=8, le=20), width: int = Query(600, ge=100, le=800), height: int = Query(300, ge=100, le=400)):
+    """Return the Google Static Maps URL (kept server-side to avoid leaking the key)."""
+    if not GOOGLE_MAPS_API_KEY:
+        raise HTTPException(status_code=500, detail="Maps API key not configured")
+    url = (
+        "https://maps.googleapis.com/maps/api/staticmap"
+        f"?center={lat},{lng}&zoom={zoom}&size={width}x{height}"
+        f"&markers=color:0xFF5722%7C{lat},{lng}&key={GOOGLE_MAPS_API_KEY}"
+        "&scale=2&style=feature:poi|element:labels|visibility:off"
+    )
+    return {"url": url, "lat": lat, "lng": lng}
 
 
 # ---------- Admin: bulk import ----------

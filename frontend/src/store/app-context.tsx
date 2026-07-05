@@ -41,6 +41,23 @@ type Ctx = {
   t: (key: string, vars?: Record<string, string | number>) => string;
   cartCount: number;
   setCartCount: (n: number) => void;
+  cartQtyMap: Record<string, number>;
+  applyCart: (items: Array<{ product_id: string; qty: number }> | undefined | null, count?: number) => void;
+  selectedAddress: SelectedAddress | null;
+  setSelectedAddress: (a: SelectedAddress | null) => void;
+};
+
+export type SelectedAddress = {
+  formatted_address: string;
+  line1: string;
+  city: string;
+  postal_code: string;
+  country: string;
+  country_code: string;
+  lat: number;
+  lng: number;
+  place_id: string;
+  serviceable: boolean;
 };
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -53,6 +70,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<Lang>("en");
   const [currency, setCurrencyState] = useState<Currency>("LEK");
   const [cartCount, setCartCount] = useState(0);
+  const [cartQtyMap, setCartQtyMap] = useState<Record<string, number>>({});
+  const [selectedAddress, setSelectedAddress] = useState<SelectedAddress | null>(null);
+
+  const applyCart = useCallback(
+    (items: Array<{ product_id: string; qty: number }> | undefined | null, count?: number) => {
+      const next: Record<string, number> = {};
+      let total = 0;
+      (items || []).forEach((it) => {
+        next[it.product_id] = it.qty;
+        total += it.qty;
+      });
+      setCartQtyMap(next);
+      setCartCount(typeof count === "number" ? count : total);
+    },
+    [],
+  );
 
   useEffect(() => {
     (async () => {
@@ -95,6 +128,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUser(null);
     setCartCount(0);
+    setCartQtyMap({});
+    setSelectedAddress(null);
     await storage.secureRemove(STORAGE_TOKEN);
     await storage.removeItem(STORAGE_USER);
   }, []);
@@ -141,8 +176,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       t,
       cartCount,
       setCartCount,
+      cartQtyMap,
+      applyCart,
+      selectedAddress,
+      setSelectedAddress,
     }),
-    [ready, onboarded, setOnboarded, token, user, setSession, clearSession, refreshUser, lang, setLang, currency, setCurrency, t, cartCount],
+    [ready, onboarded, setOnboarded, token, user, setSession, clearSession, refreshUser, lang, setLang, currency, setCurrency, t, cartCount, cartQtyMap, applyCart, selectedAddress],
   );
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;

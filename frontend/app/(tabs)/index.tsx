@@ -9,11 +9,12 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api, resolveImageUrl, type Category, type Product } from "@/src/lib/api";
 import { useApp, formatPrice } from "@/src/store/app-context";
+import { ProductAddButton } from "@/src/components/product-add-button";
 import { colors, radius, spacing } from "@/src/theme";
 
 export default function Home() {
   const router = useRouter();
-  const { t, user, currency, setCartCount } = useApp();
+  const { t, user, currency, applyCart, cartQtyMap } = useApp();
   const [cats, setCats] = useState<Category[]>([]);
   const [featured, setFeatured] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
@@ -29,8 +30,8 @@ export default function Home() {
       setCats(catList);
       setFeatured(prods);
       try {
-        const cart = await api.get<{ count: number }>("/cart", true);
-        setCartCount(cart.count || 0);
+        const cart = await api.get<{ items: Array<{ product_id: string; qty: number }>; count: number }>("/cart", true);
+        applyCart(cart.items, cart.count);
       } catch {}
     } finally {
       setLoading(false);
@@ -45,11 +46,15 @@ export default function Home() {
 
   const addToCart = async (p: Product) => {
     try {
-      const res = await api.post<{ count: number }>("/cart", { product_id: p.id, qty: 1 }, true);
-      setCartCount(res.count || 0);
-    } catch (e) {
-      // ignore for now
-    }
+      const c = await api.post<{ items: any[]; count: number }>("/cart", { product_id: p.id, qty: 1 }, true);
+      applyCart(c.items, c.count);
+    } catch (e) {}
+  };
+  const setQty = async (pid: string, qty: number) => {
+    try {
+      const c = await api.patch<{ items: any[]; count: number }>(`/cart/${pid}`, { qty });
+      applyCart(c.items, c.count);
+    } catch {}
   };
 
   const onSearch = () => {
@@ -120,7 +125,15 @@ export default function Home() {
           </View>
         }
         renderItem={({ item }) => (
-          <ProductCard p={item} currency={currency} onAdd={() => addToCart(item)} onPress={() => router.push(`/product/${item.id}`)} t={t} />
+          <ProductCard
+            p={item}
+            currency={currency}
+            qty={cartQtyMap[item.id] || 0}
+            onAdd={() => addToCart(item)}
+            onInc={() => setQty(item.id, (cartQtyMap[item.id] || 0) + 1)}
+            onDec={() => setQty(item.id, Math.max(0, (cartQtyMap[item.id] || 0) - 1))}
+            onPress={() => router.push(`/product/${item.id}`)}
+          />
         )}
       />
     </SafeAreaView>
@@ -165,15 +178,19 @@ function CategoryTile({ cat, onPress, t }: { cat: Category; onPress: () => void;
 function ProductCard({
   p,
   currency,
+  qty,
   onAdd,
+  onInc,
+  onDec,
   onPress,
-  t,
 }: {
   p: Product;
   currency: "LEK" | "EUR";
+  qty: number;
   onAdd: () => void;
+  onInc: () => void;
+  onDec: () => void;
   onPress: () => void;
-  t: any;
 }) {
   return (
     <Pressable style={styles.prodCard} onPress={onPress} testID={`product-card-${p.id}`}>
@@ -183,18 +200,22 @@ function ProductCard({
         ) : (
           <Text style={styles.prodEmoji}>{p.image_emoji}</Text>
         )}
+        <View style={styles.prodImageBtn}>
+          <ProductAddButton
+            qty={qty}
+            onAdd={onAdd}
+            onIncrement={onInc}
+            onDecrement={onDec}
+            productId={p.id}
+            compact
+          />
+        </View>
       </View>
       <Text style={styles.prodName} numberOfLines={2}>
         {p.name}
       </Text>
       <Text style={styles.prodUnit}>{p.unit || p.weight}</Text>
-      <View style={styles.prodFooter}>
-        <Text style={styles.prodPrice}>{formatPrice(p.price_lek, p.price_eur, currency)}</Text>
-        <Pressable onPress={onAdd} style={styles.addBtn} testID={`add-to-cart-${p.id}`}>
-          <Ionicons name="add" size={16} color={colors.primary} />
-          <Text style={styles.addBtnText}>{t("add")}</Text>
-        </Pressable>
-      </View>
+      <Text style={styles.prodPrice}>{formatPrice(p.price_lek, p.price_eur, currency)}</Text>
     </Pressable>
   );
 }
@@ -287,6 +308,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
+    position: "relative",
+  },
+  prodImageBtn: {
+    position: "absolute",
+    right: 6,
+    bottom: 6,
   },
   prodEmoji: { fontSize: 44 },
   prodImg: { width: "100%", height: "100%" },

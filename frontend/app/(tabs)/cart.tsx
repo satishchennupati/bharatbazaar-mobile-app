@@ -125,7 +125,7 @@ export default function CartScreen() {
                 </View>
                 <View style={styles.qty}>
                   <Pressable
-                    style={styles.qtyBtn}
+                    style={[styles.qtyBtn, { backgroundColor: "transparent" }]}
                     onPress={() => (item.qty > 1 ? updateQty(item.product_id, item.qty - 1) : remove(item.product_id))}
                     disabled={busy}
                     testID={`cart-dec-${item.product_id}`}
@@ -139,7 +139,7 @@ export default function CartScreen() {
                     disabled={busy}
                     testID={`cart-inc-${item.product_id}`}
                   >
-                    <Ionicons name="add" size={16} color={colors.primary} />
+                    <Ionicons name="add" size={16} color="#fff" />
                   </Pressable>
                 </View>
               </View>
@@ -229,7 +229,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     gap: 4,
   },
-  qtyBtn: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
+  qtyBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#16A34A",
+  },
   qtyVal: { minWidth: 18, textAlign: "center", fontWeight: "700", color: colors.primary, fontSize: 14 },
   summary: {
     position: "absolute",

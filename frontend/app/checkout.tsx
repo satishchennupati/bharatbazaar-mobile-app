@@ -18,7 +18,7 @@ const LEK_PER_EUR = 100;
 
 export default function Checkout() {
   const router = useRouter();
-  const { t, currency, user, setCartCount, refreshUser } = useApp();
+  const { t, currency, user, setCartCount, refreshUser, selectedAddress } = useApp();
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -33,6 +33,13 @@ export default function Checkout() {
   const [note, setNote] = useState("");
 
   useEffect(() => {
+    if (selectedAddress) {
+      setLine1(selectedAddress.line1 || selectedAddress.formatted_address);
+      setCity(selectedAddress.city || city);
+      setPostal(selectedAddress.postal_code || "");
+      setCountry(selectedAddress.country || "Albania");
+      return;
+    }
     const saved = user?.addresses?.[0];
     if (saved) {
       setLine1(saved.line1 || "");
@@ -46,7 +53,7 @@ export default function Checkout() {
       .get<Cart>("/cart", true)
       .then(setCart)
       .finally(() => setLoading(false));
-  }, [user]);
+  }, [user, selectedAddress]);
 
   const subLek = cart?.subtotal_lek || 0;
   const subEur = cart?.subtotal_eur || 0;
@@ -110,6 +117,17 @@ export default function Checkout() {
 
       <KeyboardAwareScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 180 }} bottomOffset={20}>
         <Text style={styles.section}>{t("delivery_address")}</Text>
+        <Pressable
+          onPress={() => router.push("/address-picker")}
+          style={{ backgroundColor: colors.primaryLight, borderWidth: 1.5, borderColor: colors.primary, borderRadius: radius.lg, padding: spacing.base, flexDirection: "row", alignItems: "center", gap: 10, marginBottom: spacing.md }}
+          testID="co-open-map-picker"
+        >
+          <Ionicons name="location" size={20} color={colors.primary} />
+          <Text style={{ flex: 1, color: colors.primary, fontWeight: "700" }}>
+            {selectedAddress ? "Change address on map" : "Pick address on map"}
+          </Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+        </Pressable>
         <Field label={t("address_line1")}>
           <TextInput value={line1} onChangeText={setLine1} style={styles.input} testID="co-line1" placeholder="Rruga e Durresit 12" placeholderTextColor={colors.textDisabled} />
         </Field>
