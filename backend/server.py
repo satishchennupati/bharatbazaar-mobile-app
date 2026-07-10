@@ -1135,6 +1135,40 @@ async def seed_db():
         )
         logger.info("Seeded demo user (demo / demo1234)")
 
+    # Seed whitelisted quick-access user (idempotent). Login flow will
+    # naturally route this phone to the password step (no OTP) because the
+    # user exists in the DB.
+    quick_phone = "+355695808480"
+    quick_pw = "123456"
+    existing = await db.users.find_one({"phone": quick_phone})
+    if not existing:
+        try:
+            await db.users.insert_one(
+                {
+                    "id": "quick-user-001",
+                    "username": "quick_user",
+                    "phone": quick_phone,
+                    "full_name": "Bharat Bazaar Customer",
+                    "email": "quickuser@bharatbazaar.com",
+                    "language": "en",
+                    "currency": "LEK",
+                    "password_hash": hash_pw(quick_pw),
+                    "addresses": [],
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            logger.info("Seeded quick-access user (%s / %s)", quick_phone, quick_pw)
+        except Exception as e:
+            logger.warning("Could not seed quick user: %s", e)
+    else:
+        # Ensure the password is always aligned to the whitelisted value in
+        # case it was rotated in a previous session.
+        await db.users.update_one(
+            {"phone": quick_phone},
+            {"$set": {"password_hash": hash_pw(quick_pw)}},
+        )
+        logger.info("Ensured quick-access password for %s", quick_phone)
+
 
 @app.on_event("shutdown")
 async def shutdown():

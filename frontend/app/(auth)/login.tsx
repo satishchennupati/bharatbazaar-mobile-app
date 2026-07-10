@@ -81,21 +81,6 @@ export default function Login() {
     }
   };
 
-  // ------------- One-tap demo login (works in dev & prod) -------------
-  const onDemoLogin = async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await api.post<{ token: string; user: any }>("/auth/demo-login", {});
-      await setSession(res.token, res.user);
-      router.replace("/(tabs)");
-    } catch (e: any) {
-      setError(e?.message || t("error_generic"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // ------------- Existing user login -------------
   const onLogin = async () => {
     setError(null);
@@ -260,26 +245,6 @@ export default function Login() {
             >
               <Text style={styles.ctaText}>{loading ? t("loading") : t("continue")}</Text>
               {!loading && <Ionicons name="arrow-forward" size={18} color="#fff" />}
-            </Pressable>
-
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>{t("or")}</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <Pressable
-              onPress={onDemoLogin}
-              disabled={loading}
-              style={[styles.demoCta, loading && { opacity: 0.6 }]}
-              testID="auth-demo-login-btn"
-            >
-              <Ionicons name="flash" size={18} color={colors.primary} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.demoCtaTitle}>{t("try_demo")}</Text>
-                <Text style={styles.demoCtaSub}>{t("try_demo_sub")}</Text>
-              </View>
-              <Ionicons name="arrow-forward" size={16} color={colors.primary} />
             </Pressable>
           </>
         )}
