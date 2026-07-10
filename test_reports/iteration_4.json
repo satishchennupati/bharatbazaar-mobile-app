@@ -1,0 +1,43 @@
+{
+  "summary": "Interactive map picker end-to-end verified. Backend 4/4 pytest PASSED: (1) GET /api/geo/map-picker?lat=41.3275&lng=19.8187&zoom=12 → 200 + Content-Type text/html with 'leaflet' + 'L.tileLayer(' + supplied lat/lng interpolated into setView; (2) default lat/lng path also 200 with Leaflet+tileLayer; (3) GET /api/geo/reverse-geocode?lat=41.3275&lng=19.8187 → 200 with formatted_address='Kali i Skënderbeut...', country_code='AL', city='Tiranë', state='Tirana County', serviceable=true; (4) GET /api/geo/reverse-geocode?lat=48.8566&lng=2.3522 (Paris) → 200 with serviceable=false, unserviceable_reason='We currently deliver only within Albania.', country_code!='AL'. Frontend Playwright (mobile 390×844): login (+355 695808480 / 123456) → /checkout → tap seg-map → tap co-open-map-picker → /address-picker renders an iframe with src=/api/geo/map-picker?lat=41.3275&lng=19.8187&zoom=12 sized 390×564 (well over 400px, occupying most of viewport). After ~4s the default reverse-geocoded address 'Kali i Skënderbeut, Rruga Sheshi Skënderbej, Tiranë, Albania' + 'Tiranë · Tirana County · Albania' + orange 'Use this address' CTA are shown. Autocomplete: typing 'Durres' into addr-search-input renders 5 addr-sugg-{place_id} rows; picking the first updates the bottom sheet to '8FF4+VGR, Rruga Kristo Sotiri 81, Durrës 2001, Albania' + 'Durrës · Durrës County · Albania' and calls setFlyTo (iframe still present). Tapping addr-confirm-btn → router.back() lands on /checkout with seg-map active (orange), 'Change address on map' block showing the resolved formatted_address, mini-map preview rendered, State/City auto-hydrated (Tiranë/Tiranë). No red-screen, no blocking issues.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "address-picker.tsx MapPickerWeb <iframe>",
+        "issue": "The iframe passes `testID=\"map-picker-iframe\"` on a plain HTML 'iframe' tag (const Iframe: any = 'iframe'). Since React DOM does not recognize `testID` on a native element, it is dropped from the DOM (data-testid absent) and produces the console warning 'React does not recognize the `%s` prop on a DOM element'. The iframe itself does render with the correct src, so tests that look for `iframe` still pass — but the requested `[data-testid=\"map-picker-iframe\"]` selector will always be zero. Fix: pass `data-testid=\"map-picker-iframe\"` explicitly for the web iframe (alongside/instead of the RN testID prop) in /app/frontend/app/address-picker.tsx:74."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_geo_map_picker.py",
+    "/app/test_reports/pytest/geo_map_picker_results.xml"
+  ],
+  "action_items": [
+    "Optional polish: in /app/frontend/app/address-picker.tsx line 74, also pass `data-testid=\"map-picker-iframe\"` on the <iframe> for web so the requested selector is queryable and to clear the 'React does not recognize the testID prop' console warning. The container [data-testid=\"map-picker-area\"] already works because it's on a RN View.",
+    "Pre-existing (not this bug): shadow* + pointerEvents style-prop deprecations still logged across the app — unchanged from iteration_3 report."
+  ],
+  "critical_code_review_comments": [
+    "Backend /api/geo/map-picker returns a self-contained Leaflet HTML page with OSM tiles (no API key needed), correctly interpolates the requested lat/lng/zoom into `map.setView`, wires moveend/zoomend → debounced postMessage to both window.parent (web iframe) and window.ReactNativeWebView (native), and listens for `fly-to` messages back — clean two-way bridge.",
+    "/api/geo/reverse-geocode reuses _parse_google_address_components and returns the SAME response shape as /api/geo/place-details, so the RN client can call setSelected() with either without a code fork — good abstraction.",
+    "SERVICEABLE_COUNTRY_CODES gating correctly forces serviceable=false + unserviceable_reason for non-AL results (Paris test confirms).",
+    "address-picker.tsx cleanly splits web (iframe + window.addEventListener('message')) and native (react-native-webview + injectJavaScript for fly-to). The debounced reverse-geocode (500ms) after every pin drag avoids hammering the API.",
+    "Checkout hydration path (checkout.tsx:57-77) correctly flips entryMode → 'map' when selectedAddress exists AND matches qark/bashkia against Albania lists, which is why State/City auto-filled to Tiranë/Tiranë end-to-end.",
+    "Note: `selectedAddress` in AppContext is in-memory only (no AsyncStorage/localStorage persistence). A hard page reload wipes it, so the E2E flow must use in-app router.back() rather than page.goto('/checkout') to see the address on checkout — behavior is correct for the mobile app; only affects testing shortcuts."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_geo_map_picker.py (new — 4 pytest tests covering the map-picker HTML + reverse-geocode AL/non-AL branches)"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% of covered flow (map render + autocomplete pick + confirm + checkout hydration)"},
+  "seed_data_creation": "None. No DB writes.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public URL: https://bharat-app-8.preview.emergentagent.com. Run map-picker backend suite: `cd /app && python -m pytest backend/tests/test_geo_map_picker.py -v`. Frontend E2E flow: onboarding continue → /login → auth-phone-input '695808480' → auth-continue-btn → auth-password-input '123456' → auth-login-btn → tabs home → nav /checkout → tap seg-map → tap co-open-map-picker (uses router.push so AppContext is preserved!) → /address-picker → wait 4s → confirm bottom sheet shows Tirana address + orange 'Use this address' → optionally autocomplete via addr-search-input='Durres' then click first addr-sugg-* → tap addr-confirm-btn (router.back) → back on /checkout with seg-map active + 'Change address on map' block showing the address. DO NOT use page.goto('/checkout') after picking — selectedAddress is in-memory-only and a full reload clears it.",
+  "rca_of_issue": "N/A — bug fix works as specified. The old autocomplete-only address picker has been replaced with a real interactive Leaflet+OSM map served as HTML from /api/geo/map-picker, embedded via <iframe> on web / react-native-webview on native. Pin drag → window.postMessage → RN listener → /api/geo/reverse-geocode → bottom sheet updates. Autocomplete remains as a floating search bar over the map and additionally emits a 'fly-to' postMessage so the map re-centers on picked suggestions."
+}

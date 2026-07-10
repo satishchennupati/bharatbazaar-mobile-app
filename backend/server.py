@@ -881,12 +881,33 @@ async def geo_place_details(place_id: str = Query(...)):
     data = r.json()
     result = data.get("result") or {}
     loc = ((result.get("geometry") or {}).get("location") or {})
-    parts = {}
-    country_code = None
-    for comp in result.get("address_components", []):
+    parsed = _parse_google_address_components(result.get("address_components", []))
+    line1 = " ".join([p for p in [parsed.get("street_number"), parsed.get("street")] if p]) or (result.get("name") or "")
+    serviceable = parsed["country_code"] in SERVICEABLE_COUNTRY_CODES
+    return {
+        "place_id": place_id,
+        "formatted_address": result.get("formatted_address"),
+        "lat": loc.get("lat"),
+        "lng": loc.get("lng"),
+        "country_code": parsed["country_code"],
+        "country": parsed.get("country"),
+        "state": parsed.get("state", ""),
+        "city": parsed.get("city"),
+        "area": parsed.get("area", ""),
+        "postal_code": parsed.get("postal_code", ""),
+        "line1": line1,
+        "serviceable": serviceable,
+        "unserviceable_reason": None if serviceable else "We currently deliver only within Albania.",
+    }
+
+
+def _parse_google_address_components(components: list) -> dict:
+    """Extract structured fields from a Google address_components array."""
+    parts = {"country_code": None}
+    for comp in components:
         types = comp.get("types", [])
         if "country" in types:
-            country_code = comp.get("short_name")
+            parts["country_code"] = comp.get("short_name")
             parts["country"] = comp.get("long_name")
         if "postal_code" in types:
             parts["postal_code"] = comp.get("long_name")
@@ -895,30 +916,159 @@ async def geo_place_details(place_id: str = Query(...)):
         if "administrative_area_level_2" in types:
             parts.setdefault("city", comp.get("long_name"))
         if "locality" in types:
-            parts["city"] = comp.get("long_name")  # locality overrides admin_area_level_2 as city
+            parts["city"] = comp.get("long_name")
         if "sublocality" in types or "sublocality_level_1" in types or "neighborhood" in types:
             parts.setdefault("area", comp.get("long_name"))
         if "route" in types:
             parts.setdefault("street", comp.get("long_name"))
         if "street_number" in types:
             parts["street_number"] = comp.get("long_name")
-    line1 = " ".join([p for p in [parts.get("street_number"), parts.get("street")] if p]) or (result.get("name") or "")
-    serviceable = country_code in SERVICEABLE_COUNTRY_CODES
+    return parts
+
+
+@api.get("/geo/reverse-geocode")
+async def geo_reverse_geocode(lat: float = Query(...), lng: float = Query(...)):
+    """Reverse-geocode a (lat, lng) to a structured address via Google Geocoding API.
+    Returns the same shape as /geo/place-details so the client can reuse the same code path."""
+    if not GOOGLE_MAPS_API_KEY:
+        raise HTTPException(status_code=500, detail="Maps API key not configured")
+    params = {
+        "latlng": f"{lat},{lng}",
+        "key": GOOGLE_MAPS_API_KEY,
+        "language": "en",
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get("https://maps.googleapis.com/maps/api/geocode/json", params=params)
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail="Reverse geocoding failed")
+    data = r.json()
+    results = data.get("results") or []
+    if not results:
+        return {
+            "place_id": None,
+            "formatted_address": f"{lat:.5f}, {lng:.5f}",
+            "lat": lat,
+            "lng": lng,
+            "country_code": None,
+            "country": "",
+            "state": "",
+            "city": "",
+            "area": "",
+            "postal_code": "",
+            "line1": "",
+            "serviceable": False,
+            "unserviceable_reason": "No address found for this location.",
+        }
+    # Prefer street_address or premise, fall back to the first result.
+    best = next(
+        (
+            res
+            for res in results
+            if any(t in ("street_address", "premise", "route") for t in res.get("types", []))
+        ),
+        results[0],
+    )
+    parsed = _parse_google_address_components(best.get("address_components", []))
+    line1 = " ".join([p for p in [parsed.get("street_number"), parsed.get("street")] if p])
+    serviceable = parsed["country_code"] in SERVICEABLE_COUNTRY_CODES
     return {
-        "place_id": place_id,
-        "formatted_address": result.get("formatted_address"),
-        "lat": loc.get("lat"),
-        "lng": loc.get("lng"),
-        "country_code": country_code,
-        "country": parts.get("country"),
-        "state": parts.get("state", ""),
-        "city": parts.get("city"),
-        "area": parts.get("area", ""),
-        "postal_code": parts.get("postal_code", ""),
+        "place_id": best.get("place_id"),
+        "formatted_address": best.get("formatted_address"),
+        "lat": lat,
+        "lng": lng,
+        "country_code": parsed["country_code"],
+        "country": parsed.get("country", ""),
+        "state": parsed.get("state", ""),
+        "city": parsed.get("city", ""),
+        "area": parsed.get("area", ""),
+        "postal_code": parsed.get("postal_code", ""),
         "line1": line1,
         "serviceable": serviceable,
         "unserviceable_reason": None if serviceable else "We currently deliver only within Albania.",
     }
+
+
+@api.get("/geo/map-picker")
+async def geo_map_picker_page(
+    lat: float = Query(41.3275),
+    lng: float = Query(19.8187),
+    zoom: int = Query(12, ge=6, le=19),
+):
+    """Serves a self-contained Leaflet HTML page for picking a location on a real
+    interactive map. Uses OpenStreetMap tiles (no API key needed).
+
+    Communicates with the parent frame via `window.parent.postMessage`. Payload:
+      { type: "map-pin", lat: number, lng: number }
+    """
+    html = f"""<!doctype html>
+<html>
+<head>
+  <meta charset='utf-8'/>
+  <meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1'/>
+  <title>Pick location</title>
+  <link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'/>
+  <style>
+    html, body, #map {{ height: 100%; margin: 0; padding: 0; }}
+    body {{ font-family: -apple-system, system-ui, sans-serif; background: #fff; }}
+    #map {{ width: 100%; touch-action: none; }}
+    .center-pin {{
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -100%);
+      font-size: 44px; pointer-events: none;
+      filter: drop-shadow(0 3px 4px rgba(0,0,0,0.4));
+      z-index: 999;
+    }}
+    .hint {{
+      position: fixed; bottom: 12px; left: 12px; right: 12px;
+      background: rgba(255,255,255,0.95); border-radius: 12px;
+      padding: 10px 14px; font-size: 13px; color: #333;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15); text-align: center;
+      z-index: 1000; font-weight: 600;
+    }}
+  </style>
+</head>
+<body>
+  <div id='map'></div>
+  <div class='center-pin'>📍</div>
+  <div class='hint'>Drag the map to place the pin</div>
+  <script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>
+  <script>
+    (function() {{
+      var map = L.map('map', {{ zoomControl: true, attributionControl: false }}).setView([{lat}, {lng}], {zoom});
+      L.tileLayer('https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
+        maxZoom: 19, attribution: '© OpenStreetMap'
+      }}).addTo(map);
+
+      function post() {{
+        var c = map.getCenter();
+        var payload = {{ type: 'map-pin', lat: c.lat, lng: c.lng, zoom: map.getZoom() }};
+        try {{ window.parent.postMessage(JSON.stringify(payload), '*'); }} catch(e) {{}}
+        if (window.ReactNativeWebView) {{
+          try {{ window.ReactNativeWebView.postMessage(JSON.stringify(payload)); }} catch(e) {{}}
+        }}
+      }}
+
+      var debounce;
+      map.on('moveend zoomend', function() {{
+        clearTimeout(debounce);
+        debounce = setTimeout(post, 350);
+      }});
+      // Fly to a new location when parent sends a message.
+      window.addEventListener('message', function(ev) {{
+        try {{
+          var data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+          if (data && data.type === 'fly-to' && typeof data.lat === 'number') {{
+            map.flyTo([data.lat, data.lng], data.zoom || 15, {{ duration: 0.6 }});
+          }}
+        }} catch(e) {{}}
+      }});
+      // Initial post
+      setTimeout(post, 400);
+    }})();
+  </script>
+</body>
+</html>"""
+    return Response(content=html, media_type="text/html; charset=utf-8")
 
 
 @api.get("/geo/static-map")
