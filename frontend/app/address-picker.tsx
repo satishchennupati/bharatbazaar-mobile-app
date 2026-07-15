@@ -134,6 +134,10 @@ export default function AddressPicker() {
 
   const suggestDebounce = useRef<any>(null);
   const reverseDebounce = useRef<any>(null);
+  // Track the last resolved lat/lng so we skip redundant reverse-geocodes
+  // fired by the map's idle event during tile loads or micro-movements.
+  const lastResolvedRef = useRef<{ lat: number; lng: number } | null>(null);
+  const inFlightRef = useRef(false);
 
   // ---- Autocomplete ----
   useEffect(() => {
@@ -159,16 +163,31 @@ export default function AddressPicker() {
   }, [query]);
 
   // ---- Pin drag → reverse geocode ----
+  // Skip if the pin barely moved (< ~15 meters at Albania's latitude) OR if a
+  // request is already in flight — both of these cause the "Resolving address"
+  // pill to flicker on every micro-idle event that Google Maps emits during
+  // tile loading and settle animations.
   const onPin = useCallback((lat: number, lng: number) => {
+    const last = lastResolvedRef.current;
+    if (last) {
+      const dLat = Math.abs(last.lat - lat);
+      const dLng = Math.abs(last.lng - lng);
+      // ~0.00015 deg ≈ 15 meters at 41° latitude.
+      if (dLat < 0.00015 && dLng < 0.00015) return;
+    }
     clearTimeout(reverseDebounce.current);
     reverseDebounce.current = setTimeout(async () => {
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
       setResolving(true);
       try {
         const details = await api.get<SelectedAddress>(`/geo/reverse-geocode?lat=${lat}&lng=${lng}`);
         setSelected(details);
+        lastResolvedRef.current = { lat, lng };
       } catch {
         /* ignore */
       } finally {
+        inFlightRef.current = false;
         setResolving(false);
       }
     }, REVERSE_DEBOUNCE_MS);

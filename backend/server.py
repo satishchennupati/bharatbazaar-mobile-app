@@ -970,6 +970,21 @@ async def geo_reverse_geocode(lat: float = Query(...), lng: float = Query(...)):
     )
     parsed = _parse_google_address_components(best.get("address_components", []))
     line1 = " ".join([p for p in [parsed.get("street_number"), parsed.get("street")] if p])
+    # Fallback: pull the first comma-separated fragment from the formatted
+    # address if we don't have a street name (common in Albanian rural areas).
+    if not line1 and best.get("formatted_address"):
+        line1 = best["formatted_address"].split(",")[0].strip()
+    # Fallback for area: prefer sublocality/neighborhood, else derive from the
+    # second fragment of the formatted address.
+    area = parsed.get("area", "")
+    if not area and best.get("formatted_address"):
+        parts = [p.strip() for p in best["formatted_address"].split(",")]
+        # Skip the first fragment (street) and the country (last); take the
+        # first remaining fragment that isn't the city.
+        for frag in parts[1:-1]:
+            if frag and frag.lower() != (parsed.get("city") or "").lower():
+                area = frag
+                break
     serviceable = parsed["country_code"] in SERVICEABLE_COUNTRY_CODES
     return {
         "place_id": best.get("place_id"),
@@ -980,7 +995,7 @@ async def geo_reverse_geocode(lat: float = Query(...), lng: float = Query(...)):
         "country": parsed.get("country", ""),
         "state": parsed.get("state", ""),
         "city": parsed.get("city", ""),
-        "area": parsed.get("area", ""),
+        "area": area,
         "postal_code": parsed.get("postal_code", ""),
         "line1": line1,
         "serviceable": serviceable,
@@ -1062,6 +1077,7 @@ async def geo_map_picker_page(
             clickableIcons: false,
           }});
           var debounce;
+          var userInteracted = false;
           function post() {{
             var c = map.getCenter();
             if (!c) return;
@@ -1072,19 +1088,34 @@ async def geo_map_picker_page(
               try {{ window.ReactNativeWebView.postMessage(msg); }} catch(e) {{}}
             }}
           }}
-          map.addListener('idle', function() {{
+          // Only fire on user-driven movements (drag / pinch / zoom). The `idle`
+          // event that we previously listened to also fires during tile loads
+          // and viewport settle animations, which caused the parent to
+          // "Resolving address..." flicker on every micro-event.
+          map.addListener('dragstart', function() {{ userInteracted = true; }});
+          map.addListener('dragend', function() {{
             clearTimeout(debounce);
-            debounce = setTimeout(post, 200);
+            debounce = setTimeout(post, 250);
+          }});
+          map.addListener('zoom_changed', function() {{
+            if (!userInteracted) return; // ignore initial fit-to-bounds zoom
+            clearTimeout(debounce);
+            debounce = setTimeout(post, 250);
           }});
           window.addEventListener('message', function(ev) {{
             try {{
               var data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
               if (data && data.type === 'fly-to' && typeof data.lat === 'number') {{
+                userInteracted = true;
                 map.panTo({{ lat: data.lat, lng: data.lng }});
                 if (data.zoom) map.setZoom(data.zoom);
+                clearTimeout(debounce);
+                debounce = setTimeout(post, 500);
               }}
             }} catch(e) {{}}
           }});
+          // One initial post so the parent can resolve the default center's
+          // address on first load.
           setTimeout(post, 400);
         }} catch (err) {{
           document.body.innerHTML = "<div class='fatal'>Unable to load Google Maps. Please make sure the Maps JavaScript API is enabled on the server key.</div>";

@@ -60,17 +60,25 @@ export default function Checkout() {
       const c = findCountryByName(selectedAddress.country || "Albania");
       const cc = c?.code || selectedAddress.country_code || "AL";
       setCountryCode(cc);
-      // Reverse-geocode auto-fill for Albania: match qark & bashkia to our lists.
+      // Reverse-geocode auto-fill: match Albania's qark/bashkia to our lists
+      // when possible, otherwise fall back to the raw Google-returned strings
+      // so the user always sees something meaningful in the fields.
       if (cc === "AL") {
-        const qark = matchQark(selectedAddress.state) || "";
-        if (qark) setState(qark);
-        const bashkia = matchBashkia(selectedAddress.city, qark) || selectedAddress.city || "";
-        if (bashkia) setCity(bashkia);
+        const qark = matchQark(selectedAddress.state) || selectedAddress.state || "";
+        setState(qark);
+        const bashkia =
+          matchBashkia(selectedAddress.city, matchQark(selectedAddress.state)) ||
+          selectedAddress.city ||
+          "";
+        setCity(bashkia);
       } else {
         setState(selectedAddress.state || "");
         setCity(selectedAddress.city || "");
       }
-      if (selectedAddress.area) setArea(selectedAddress.area);
+      // Area (Lagje): Google returns sublocality/neighborhood if available;
+      // otherwise the backend derives it from the formatted address.
+      setArea(selectedAddress.area || "");
+      // line1 (street + number) is stored for the order payload.
       setLine1(selectedAddress.line1 || selectedAddress.formatted_address || "");
       setPostal(selectedAddress.postal_code || "");
       return;

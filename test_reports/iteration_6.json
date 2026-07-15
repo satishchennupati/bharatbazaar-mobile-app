@@ -1,0 +1,36 @@
+{
+  "summary": "Both iteration-6 bug fixes VERIFIED end-to-end. (A) FLICKER FIX: Backend GET /api/geo/map-picker HTML now attaches Google Maps 'dragend' + 'zoom_changed' listeners (with a userInteracted guard) and NO LONGER attaches the 'idle' listener (which fired on tile-load & camera-settle animations). Playwright poll on /address-picker (mobile 390x844, no interaction) took 16 samples over 8s — the 'Resolving address…' pill was ABSENT in 16/16 samples (max consecutive absent streak: 16, i.e. >=5s idle requirement easily met). (B) AUTO-POPULATION: /checkout → seg-map → co-open-map-picker → /address-picker → addr-search-input 'Durres' → 5 addr-sugg-* rows returned → click first → bottom-sheet flipped to '8FF4+VGR, Rruga Kristo Sotiri 81, Durrës 2001, Albania' → addr-confirm-btn → router.back() to /checkout. On /checkout the fields hydrated as: Country '🇦🇱 Albania', State/Qark 'Durrës', City 'Durrës', Area (Lagje) 'Rruga Kristo Sotiri 81' (non-empty), Postal code '2001' (non-empty), and the co-open-map-picker CTA shows 'Change address on map / 8FF4+VGR, Rruga Kristo Sotiri 81, Durrës 2001, Albania'. Backend pytest 6/6 PASSED including new test_no_idle_listener_uses_dragend_and_zoom_changed and test_tirana_line1_and_area_non_empty (verified /api/geo/reverse-geocode?lat=41.3275&lng=19.8187 returns line1='Rruga Sheshi Skënderbej' + area='Rruga Sheshi Skënderbej' + country_code='AL' + city='Tiranë' + state='Tirana County'). Regression PASS: /api/geo/map-picker still uses maps.googleapis.com/maps/api/js + new google.maps.Map( + no Leaflet references.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_geo_map_picker.py",
+    "/app/test_reports/pytest/geo_map_picker_iter6.xml"
+  ],
+  "action_items": [
+    "None required — both flicker fix and checkout hydration are working as specified.",
+    "Pre-existing (unchanged, NOT blocking): shadow* and props.pointerEvents deprecation console warnings across the RN app."
+  ],
+  "critical_code_review_comments": [
+    "backend/server.py map-picker HTML: replaced 'idle' listener with 'dragend' + 'zoom_changed', gated behind a userInteracted flag set by 'dragstart' and the first real 'zoom_changed'. Correctly ignores initial fit-to-bounds zoom and Google's post-tile-load settle animations — clean idiomatic fix.",
+    "backend/server.py reverse_geocode: falls back to formatted_address.split(',')[0] for line1 when street_number/route are missing, and to a middle fragment of formatted_address for area — verified live for Tirana center returning line1='Rruga Sheshi Skënderbej'.",
+    "frontend/app/address-picker.tsx: lastResolvedRef + inFlightRef prevent redundant reverse-geocode calls when the pin barely moved (<~15m) or a request is already in flight — this is a good defensive measure even though the backend fix alone was enough to eliminate the flicker in the observed run.",
+    "frontend/app/checkout.tsx: hydration effect always sets state/city (falls back to raw Google-returned strings when qark/bashkia matcher misses) and always sets area — verified: Durrës string flowed straight through to State and City dropdowns."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_geo_map_picker.py (added test_no_idle_listener_uses_dragend_and_zoom_changed + test_tirana_line1_and_area_non_empty; kept all existing assertions)"
+  ],
+  "success_rate": {"backend": "100% (6/6 pytest)", "frontend": "100% (flicker idle-window PASS, checkout hydration PASS for Country/State/City/Area/Postal + map-picker CTA text)"},
+  "seed_data_creation": "None. No DB writes.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public URL: https://bharat-app-8.preview.emergentagent.com. Whitelisted login: +355 695808480 / 123456. Run backend suite: `cd /app && python -m pytest backend/tests/test_geo_map_picker.py -v`. Iteration-6 flicker check: after landing on /address-picker and seeing 'Tiranë' in bottom sheet, poll `text=Resolving` for ~8s WITHOUT interacting — must stay hidden. Iteration-6 hydration check: after picking a Durrës suggestion via addr-search-input + addr-sugg-* + addr-confirm-btn, back on /checkout verify data-testid='in-area' has a non-empty value (e.g. 'Rruga Kristo Sotiri 81') AND data-testid='in-postal' has a non-empty value (e.g. '2001'), plus Country/State/City are 'Albania'/'Durrës'/'Durrës'. NOTE: Country/State/City are rendered as dropdown/Text (not INPUT), so they don't have in-country/in-state/in-city testIDs — read them from body.innerText instead.",
+  "rca_of_issue": "Flicker RCA: previous impl used google.maps.Map.addListener('idle', ...) which fires not only when the user finishes a pan/zoom but ALSO on every tile-load and camera-settle (including the initial fit-to-bounds animation). Each idle fire posted a message to the RN parent which triggered a reverse-geocode, causing the 'Resolving…' pill to flash repeatedly even when idle. Fix: replaced with 'dragend' + 'zoom_changed' (only real user gestures) + a userInteracted guard so the initial zoom_changed from the map-init flow is ignored, and RN-side lastResolvedRef/inFlightRef dedupes. Hydration RCA: hydration effect previously only set State/City when the returned qark/bashkia strings matched an entry in the Albanian qark/bashkia lookup table — if Google returned a spelling variant (e.g. 'Durrës County' vs the lookup's 'Durrës'), the fields stayed blank. Fix: always fall back to the raw Google string when the lookup misses, and always set area (empty allowed). Verified with Durrës autocomplete pick: fields populated Country=Albania, State=Durrës, City=Durrës, Area='Rruga Kristo Sotiri 81', Postal='2001'."
+}
