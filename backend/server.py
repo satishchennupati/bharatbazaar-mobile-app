@@ -994,30 +994,34 @@ async def geo_map_picker_page(
     lng: float = Query(19.8187),
     zoom: int = Query(12, ge=6, le=19),
 ):
-    """Serves a self-contained Leaflet HTML page for picking a location on a real
-    interactive map. Uses OpenStreetMap tiles (no API key needed).
+    """Serves a self-contained Google Maps HTML page for picking a location on
+    a real interactive map (Google Maps JavaScript API).
 
-    Communicates with the parent frame via `window.parent.postMessage`. Payload:
+    Communicates with the parent frame via `window.parent.postMessage` (web) and
+    `window.ReactNativeWebView.postMessage` (native). Payload:
       { type: "map-pin", lat: number, lng: number }
+    The parent can send `{type:"fly-to", lat, lng, zoom}` to re-center.
     """
+    if not GOOGLE_MAPS_API_KEY:
+        raise HTTPException(status_code=500, detail="Maps API key not configured")
     html = f"""<!doctype html>
 <html>
 <head>
   <meta charset='utf-8'/>
-  <meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1'/>
+  <meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no'/>
   <title>Pick location</title>
-  <link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'/>
   <style>
     html, body, #map {{ height: 100%; margin: 0; padding: 0; }}
-    body {{ font-family: -apple-system, system-ui, sans-serif; background: #fff; }}
+    body {{ font-family: -apple-system, system-ui, sans-serif; background: #fff; overflow: hidden; }}
     #map {{ width: 100%; touch-action: none; }}
     .center-pin {{
       position: fixed; top: 50%; left: 50%;
       transform: translate(-50%, -100%);
-      font-size: 44px; pointer-events: none;
-      filter: drop-shadow(0 3px 4px rgba(0,0,0,0.4));
+      pointer-events: none;
       z-index: 999;
+      filter: drop-shadow(0 3px 4px rgba(0,0,0,0.4));
     }}
+    .center-pin svg {{ display: block; }}
     .hint {{
       position: fixed; bottom: 12px; left: 12px; right: 12px;
       background: rgba(255,255,255,0.95); border-radius: 12px;
@@ -1025,47 +1029,74 @@ async def geo_map_picker_page(
       box-shadow: 0 2px 8px rgba(0,0,0,0.15); text-align: center;
       z-index: 1000; font-weight: 600;
     }}
+    .fatal {{
+      position: fixed; inset: 0; display: flex; align-items: center;
+      justify-content: center; padding: 24px; text-align: center;
+      color: #b71c1c; font-size: 14px; font-weight: 600;
+      background: #fff;
+    }}
   </style>
 </head>
 <body>
   <div id='map'></div>
-  <div class='center-pin'>📍</div>
+  <div class='center-pin' aria-hidden='true'>
+    <svg width='40' height='52' viewBox='0 0 40 52' xmlns='http://www.w3.org/2000/svg'>
+      <path d='M20 0C9 0 0 9 0 20c0 15 20 32 20 32s20-17 20-32C40 9 31 0 20 0z' fill='#FF5722'/>
+      <circle cx='20' cy='20' r='7' fill='#fff'/>
+    </svg>
+  </div>
   <div class='hint'>Drag the map to place the pin</div>
-  <script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>
   <script>
     (function() {{
-      var map = L.map('map', {{ zoomControl: true, attributionControl: false }}).setView([{lat}, {lng}], {zoom});
-      L.tileLayer('https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
-        maxZoom: 19, attribution: '© OpenStreetMap'
-      }}).addTo(map);
-
-      function post() {{
-        var c = map.getCenter();
-        var payload = {{ type: 'map-pin', lat: c.lat, lng: c.lng, zoom: map.getZoom() }};
-        try {{ window.parent.postMessage(JSON.stringify(payload), '*'); }} catch(e) {{}}
-        if (window.ReactNativeWebView) {{
-          try {{ window.ReactNativeWebView.postMessage(JSON.stringify(payload)); }} catch(e) {{}}
-        }}
-      }}
-
-      var debounce;
-      map.on('moveend zoomend', function() {{
-        clearTimeout(debounce);
-        debounce = setTimeout(post, 350);
-      }});
-      // Fly to a new location when parent sends a message.
-      window.addEventListener('message', function(ev) {{
+      window.__gm_ready = function() {{
         try {{
-          var data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
-          if (data && data.type === 'fly-to' && typeof data.lat === 'number') {{
-            map.flyTo([data.lat, data.lng], data.zoom || 15, {{ duration: 0.6 }});
+          var map = new google.maps.Map(document.getElementById('map'), {{
+            center: {{ lat: {lat}, lng: {lng} }},
+            zoom: {zoom},
+            disableDefaultUI: false,
+            zoomControl: true,
+            streetViewControl: false,
+            mapTypeControl: false,
+            fullscreenControl: false,
+            gestureHandling: 'greedy',
+            clickableIcons: false,
+          }});
+          var debounce;
+          function post() {{
+            var c = map.getCenter();
+            if (!c) return;
+            var payload = {{ type: 'map-pin', lat: c.lat(), lng: c.lng(), zoom: map.getZoom() }};
+            var msg = JSON.stringify(payload);
+            try {{ window.parent.postMessage(msg, '*'); }} catch(e) {{}}
+            if (window.ReactNativeWebView) {{
+              try {{ window.ReactNativeWebView.postMessage(msg); }} catch(e) {{}}
+            }}
           }}
-        }} catch(e) {{}}
-      }});
-      // Initial post
-      setTimeout(post, 400);
+          map.addListener('idle', function() {{
+            clearTimeout(debounce);
+            debounce = setTimeout(post, 200);
+          }});
+          window.addEventListener('message', function(ev) {{
+            try {{
+              var data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+              if (data && data.type === 'fly-to' && typeof data.lat === 'number') {{
+                map.panTo({{ lat: data.lat, lng: data.lng }});
+                if (data.zoom) map.setZoom(data.zoom);
+              }}
+            }} catch(e) {{}}
+          }});
+          setTimeout(post, 400);
+        }} catch (err) {{
+          document.body.innerHTML = "<div class='fatal'>Unable to load Google Maps. Please make sure the Maps JavaScript API is enabled on the server key.</div>";
+        }}
+      }};
+      window.gm_authFailure = function() {{
+        document.body.innerHTML = "<div class='fatal'>Google Maps authentication failed. Please check that the API key is valid and Maps JavaScript API is enabled.</div>";
+      }};
     }})();
   </script>
+  <script async defer
+    src='https://maps.googleapis.com/maps/api/js?key={GOOGLE_MAPS_API_KEY}&callback=__gm_ready&loading=async&v=weekly'></script>
 </body>
 </html>"""
     return Response(content=html, media_type="text/html; charset=utf-8")

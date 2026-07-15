@@ -1,0 +1,37 @@
+{
+  "summary": "Google Maps map-picker end-to-end verified. Backend 4/4 pytest PASSED: (1) GET /api/geo/map-picker?lat=41.3275&lng=19.8187&zoom=12 → 200 + text/html containing 'maps.googleapis.com/maps/api/js' script tag, 'new google.maps.Map(' instantiation, and non-empty 'key=' API-key param, with NO Leaflet references (no 'leaflet', no 'L.tileLayer', no 'unpkg.com/leaflet'); supplied lat/lng/zoom interpolated into the JS center; (2) GET /api/geo/map-picker (no params) → 200 with default Tirana center (41.3275, 19.8187) and zoom 12 embedded; (3) /api/geo/reverse-geocode?lat=41.3275&lng=19.8187 → country_code='AL', city='Tiranë', serviceable=true, formatted_address non-empty; (4) /api/geo/reverse-geocode Paris → serviceable=false + unserviceable_reason set, country_code≠'AL'. Frontend Playwright (mobile 390×844): onboard-continue-btn → /login → auth-phone-input '695808480' → auth-continue-btn → auth-password-input '123456' → auth-login-btn → home → /checkout → seg-map → co-open-map-picker → /address-picker. The iframe has data-testid='map-picker-iframe' and src='/api/geo/map-picker?lat=41.3275&lng=19.8187&zoom=12'. After 8s wait, inside the iframe: has_gm_style=True, gmDivs=22, gmImgs=9 (all from googleapis.com), .gm-style present, maps.googleapis.com/maps/api/js script tag loaded, window.L=undefined and no .leaflet-* elements. Bottom-sheet shows 'Kali i Skënderbeut, Rruga Sheshi Skënderbej, Tiranë, Albania' + 'Tiranë · Tirana County · Albania' + orange 'Use this address' CTA. Autocomplete: typing 'Durres' returned 5 addr-sugg-* rows; picking the first re-centered the Google Map (fly-to postMessage worked) and bottom sheet flipped to '8FF4+VGR, Rruga Kristo Sotiri 81, Durrës 2001, Albania'. Tapping addr-confirm-btn → router.back() to /checkout with seg-map active (orange), 'Change address on map' block showing the Durrës address, mini static map preview rendered, Country=Albania + State=Durrës + City=Durrës auto-hydrated. No red-screen, no console errors beyond pre-existing shadow*/pointerEvents deprecation warnings.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_geo_map_picker.py",
+    "/app/test_reports/pytest/geo_map_picker_results.xml"
+  ],
+  "action_items": [
+    "None required for this bug fix — Google Maps swap is fully working end-to-end.",
+    "Pre-existing (unchanged from prior iterations, NOT blocking): shadow*/pointerEvents style-prop deprecation console warnings across the RN app."
+  ],
+  "critical_code_review_comments": [
+    "backend/server.py geo_map_picker_page correctly gates on GOOGLE_MAPS_API_KEY (500 if missing), interpolates supplied lat/lng/zoom into the google.maps.Map constructor, and preserves the same postMessage contract ({type:'map-pin', lat, lng, zoom}) so no frontend change was needed — clean, minimally-invasive fix.",
+    "The map JS registers 'idle' (debounced 200ms) rather than moveend/zoomend — this is the Google-Maps-idiomatic single event that fires after both pan and zoom settle, so it's actually cleaner than the previous Leaflet impl. Also includes a proper gm_authFailure handler that swaps to a fatal-error message if the API key is rejected.",
+    "The API key is emitted inline in the HTML (client-side key), which is expected for the Google Maps JS API — production safety comes from HTTP-referrer / domain restrictions on the key at Google Cloud console, not from hiding it.",
+    "loading=async&v=weekly on the script tag is the current recommended pattern (avoids the 'Google Maps JavaScript API has been loaded directly without loading=async' console warning).",
+    "address-picker.tsx MapPickerWeb was untouched — passes because the postMessage payload shape is unchanged. The already-present data-testid='map-picker-iframe' works correctly."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_geo_map_picker.py (rewritten — now asserts Google Maps bootstrap + API key + absence of Leaflet, instead of the old Leaflet assertions)"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% of covered flow (map render with Google Maps tiles + autocomplete fly-to + confirm + checkout hydration)"},
+  "seed_data_creation": "None. No DB writes.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public URL: https://bharat-app-8.preview.emergentagent.com. Map picker now uses Google Maps JS API (not Leaflet). Run backend suite: `cd /app && python -m pytest backend/tests/test_geo_map_picker.py -v`. Frontend E2E: onboard-continue-btn → auth-phone-input '695808480' → auth-continue-btn → auth-password-input '123456' → auth-login-btn → page.goto('/checkout') → seg-map → co-open-map-picker (uses router.push so AppContext survives) → /address-picker. Wait ~8s for Google Maps tiles to paint. Verify by evaluating inside the iframe content_frame: (a) document.querySelector('.gm-style') truthy, (b) at least one <img> with src containing 'googleapis.com', (c) window.L is undefined. addr-search-input='Durres' → 5 addr-sugg-* rows → click first → bottom-sheet flips to Durrës → addr-confirm-btn → router.back() → /checkout with hydrated Country=Albania / State=Durrës / City=Durrës. DO NOT use page.goto('/checkout') after picking — selectedAddress is in-memory-only.",
+  "rca_of_issue": "N/A — bug fix works as specified. The Leaflet + OSM tile setup that was failing to render has been replaced by the Google Maps JavaScript API served from the same /api/geo/map-picker HTML endpoint, with an identical postMessage bridge so no frontend code changes were required. The frontend iframe successfully loads Google Maps tiles (verified via .gm-style / gm-* class prefixes and googleapis.com image tiles inside the iframe DOM)."
+}
