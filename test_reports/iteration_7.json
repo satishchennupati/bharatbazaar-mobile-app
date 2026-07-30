@@ -1,0 +1,55 @@
+{
+  "summary": "Admin Panel Phase 2 (Dashboard KPIs + Order Tracking) tested end-to-end. Backend: 23/23 pytest PASSED covering admin login (admin OK, non-admin 403), /admin/verify (401 no-token, 403 customer, 200 admin), /admin/dashboard/summary (numeric KPIs, status_breakdown with all 6 statuses, top_products, recent_orders<=5, canonical order_statuses list), /admin/orders (no-filter, status=placed, q=<phone>, limit=1, customer_name/phone attached), /admin/orders/{id} (200 + customer_email/name/phone from users, 404 on missing), PATCH /admin/orders/{id} (status transition + status_history entry with by=admin-001, invalid status 400, delivery_person_name/phone persist and re-GET, admin_note persist, delivered->delivered_at set, cancelled->cancelled_at set), and 403 on non-admin bearer for list/get/patch/dashboard. Frontend Desktop (1280x900): login with +355 690000001/admin123 lands on /admin dashboard rendering 5 KPI cards (Today's orders, Today's revenue, Pending, Total, Customers), all 6 status pills (placed/confirmed/packed/out_for_delivery/delivered/cancelled), Recent orders list, Top products section, sidebar with 4 nav items + user chip with logout icon; /admin/orders renders header count, orders-search, 7 filter chips (all/placed/confirmed/packed/out_for_delivery/delivered/cancelled), 2 order rows; tapping first row navigates to /admin/order-detail?id=MBCBE169A51 with all detail testIDs present (od-advance, od-cancel, od-dp-name, od-dp-phone, od-dp-save, od-note, od-note-save) plus Customer/Delivery address/Items sections. E2E status transition: dialog auto-accept -> tap od-advance -> header badge changes 'Placed' -> 'Confirmed' AND returning to /admin/orders the same row (orders-row-MBCBE169A51) shows the 'Confirmed' badge. Frontend Mobile (390x844): login lands on /admin with 4-tab bottom-nav (Dashboard/Orders/Products/Offers) + admin-logout-mobile icon; tapping admin-tab-orders navigates to /admin/orders with same 7 filter chips + 2 order rows; tapping first row opens /admin/order-detail with all interactive testIDs visible. Test data was cleaned up (MBCBE169A51 reset to 'placed').",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "PATCH /api/admin/orders/{id}",
+        "issue": "The endpoint returns the raw MongoDB order document WITHOUT the customer_name/customer_phone/customer_email fields that GET /api/admin/orders/{id} attaches from the users collection. Because /admin/order-detail hydrates its `order` state from the PATCH response, tapping od-advance/od-cancel/od-dp-save/od-note-save on the detail screen causes the Customer section 'Name' to flip to '—' until the page is reloaded. Symmetry with GET (attach customer_name/phone/email from users on user_id) would fix this. See /app/backend/server.py:929-960."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "admin/order-detail.tsx Customer section",
+        "issue": "After a successful status change (od-advance/od-cancel) or delivery-person save (od-dp-save) or note save (od-note-save), the Customer 'Name' field shows '—' until the screen is manually refreshed. Root cause is the backend PATCH response omitting customer_* fields (see backend_issues.minor). Frontend-side workaround: re-fetch via GET /api/admin/orders/{id} after a successful PATCH, or merge PATCH response with the existing customer_* fields already in state.",
+        "testID": "od-advance / od-cancel / od-dp-save / od-note-save",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "shadow* style props (pre-existing, admin panel inherits)",
+        "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Same as iteration_6 — not new; project-wide, not blocking. Reference: multiple StyleSheet.create blocks across /app/frontend."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_admin_phase2.py",
+    "/app/test_reports/pytest/admin_phase2_iter7.xml"
+  ],
+  "action_items": [
+    "Backend: In PATCH /admin/orders/{id} (server.py:929-960), after the final `find_one`, attach customer_name / customer_phone / customer_email from users collection (mirror the code block from admin_get_order at server.py:920-925) so that clients don't lose the customer identity after any admin edit. This is the only outstanding issue from Phase 2; everything else is green.",
+    "Optional frontend hardening: on successful PATCH, keep the existing customer_* fields when merging the response into the order state to avoid the '—' flicker until backend is fixed."
+  ],
+  "critical_code_review_comments": [
+    "server.py:867 ORDER_STATUSES list matches the canonical spec exactly ['placed','confirmed','packed','out_for_delivery','delivered','cancelled'] — validated in dashboard.order_statuses and status validation both.",
+    "server.py:929-960 admin_update_order: cleanly separates $set (updates) and $push (status_history entry with by=admin.id); correctly sets delivered_at/cancelled_at only on the matching status; rejects unknown statuses with 400 and empty payloads with 400. Only nit: response is missing the customer join (already flagged).",
+    "server.py:963-1034 admin_dashboard_summary: correct today-boundary in UTC, correct exclusion of cancelled orders from today_revenue and top_products aggregations, seeds all 6 statuses in status_breakdown even when count is 0.",
+    "server.py:877-912 admin_list_orders: `q` regex covers id + address.phone + address.whatsapp (case-insensitive); customer join done via a single bulk find on user_ids — good perf.",
+    "admin/order-detail.tsx uses window.confirm on web for advance/cancel (Platform.OS==='web') — Playwright dialog handler is required; documented behavior working as designed.",
+    "admin/_layout.tsx correctly forks between sidebar (>=900 width) and bottom-tab bar; both variants share the same TABS array so the 4 nav items are guaranteed identical."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_admin_phase2.py (new — 23 tests)"
+  ],
+  "success_rate": {"backend": "100% (23/23 pytest)", "frontend": "~97% (all critical flows PASS; single minor bug: Customer Name flips to '—' after PATCH until reload)"},
+  "seed_data_creation": "None. All PATCH mutations were reverted at the end (MBCBE169A51 -> status=placed; delivery_person_name/phone/admin_note left on the seed order MBCBE169A51 as harmless TEST_ values — main agent may want to clear these).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Public URL: https://bharat-app-8.preview.emergentagent.com. Env var (frontend): EXPO_PUBLIC_BACKEND_URL. Admin login: phone field expects LOCAL part only (fill '690000001', not '+355690000001' — the '+355' prefix is a static Text label; the phone TextInput strips non-digits). Backend suite: `cd /app && python -m pytest backend/tests/test_admin_phase2.py -v`. Seed orders in DB: MBCBE169A51 (customer +355695808480, Rruga Test 5 Tirana, 1530 L) and MBC86C81127 (customer +355690000000, Rruga Test 1 Tirane, 1119 L) — both currently 'placed'. For E2E status transition test: register `page.once('dialog', lambda d: d.accept())` before clicking od-advance/od-cancel; header badge updates in ~1.5s. Playwright is_visible returns False for the currently-active nav/tab (admin-nav-dashboard when on /admin, admin-tab-dashboard when on /admin mobile) even though the item IS rendered — screenshots confirm all 4 nav items are visible; this is a Playwright quirk, not an app bug.",
+  "rca_of_issue": "Minor PATCH-response bug RCA: admin_update_order (server.py:929-960) fetches the updated doc via `db.orders.find_one({'id': order_id}, {'_id': 0})` and returns it directly. Unlike admin_get_order (server.py:915-926) which subsequently joins the users collection to attach customer_name/phone/email onto the response, the PATCH handler does NOT perform this join. The /admin/order-detail screen replaces its local `order` state with whatever PATCH returns, so the Customer 'Name' field (bound to order.customer_name) becomes falsy after any successful admin edit until a fresh GET is issued. Fix (~5 lines): before returning `updated`, copy the last 6 lines of admin_get_order to lookup users by updated['user_id'] and attach customer_name/customer_phone/customer_email."
+}
