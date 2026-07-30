@@ -290,6 +290,13 @@ async def get_current_user(authorization: Annotated[Optional[str], Header()] = N
     return user
 
 
+async def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    """Dependency: raise 403 if the current user isn't an admin."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
 # ------------------------------------------------------------------
 # Models
 # ------------------------------------------------------------------
@@ -481,6 +488,29 @@ async def login(payload: LoginIn):
     user.pop("_id", None)
     user.pop("password_hash", None)
     return {"token": token, "user": user}
+
+
+@api.post("/admin/auth/login", response_model=AuthOut)
+async def admin_login(payload: LoginIn):
+    """Separate admin login endpoint that only succeeds for users with
+    `is_admin=True`. Returns the same {token, user} shape as `/auth/login`
+    so the client can reuse the same session-management code."""
+    phone = payload.phone.strip()
+    user = await db.users.find_one({"phone": phone})
+    if not user or not check_pw(payload.password, user.get("password_hash", "")):
+        raise HTTPException(status_code=401, detail="Invalid phone or password")
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="This account is not an admin")
+    token = make_token(user["id"])
+    user.pop("_id", None)
+    user.pop("password_hash", None)
+    return {"token": token, "user": user}
+
+
+@api.get("/admin/verify")
+async def admin_verify(user: dict = Depends(require_admin)):
+    """Client helper: verify the current bearer token belongs to an admin."""
+    return {"ok": True, "user": user}
 
 
 def _gen_otp() -> str:
@@ -1380,6 +1410,41 @@ async def seed_db():
             {"$set": {"password_hash": hash_pw(quick_pw)}},
         )
         logger.info("Ensured quick-access password for %s", quick_phone)
+
+    # Seed default admin user (idempotent). Force-refresh password + is_admin
+    # flag on every boot so admin access is always guaranteed.
+    admin_phone = "+355690000001"
+    admin_pw = "admin123"
+    admin_defaults = {
+        "id": "admin-001",
+        "username": "admin",
+        "phone": admin_phone,
+        "full_name": "Bharat Bazaar Admin",
+        "email": "admin@bharatbazaar.com",
+        "language": "en",
+        "currency": "LEK",
+        "addresses": [],
+        "is_admin": True,
+    }
+    existing_admin = await db.users.find_one({"phone": admin_phone})
+    if not existing_admin:
+        try:
+            await db.users.insert_one(
+                {
+                    **admin_defaults,
+                    "password_hash": hash_pw(admin_pw),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            logger.info("Seeded admin user (%s / %s)", admin_phone, admin_pw)
+        except Exception as e:
+            logger.warning("Could not seed admin user: %s", e)
+    else:
+        await db.users.update_one(
+            {"phone": admin_phone},
+            {"$set": {"password_hash": hash_pw(admin_pw), "is_admin": True}},
+        )
+        logger.info("Ensured admin flag & password for %s", admin_phone)
 
 
 @app.on_event("shutdown")

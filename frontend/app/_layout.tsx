@@ -22,6 +22,9 @@ function RootGate() {
     const inAuth = segments[0] === "(auth)";
     const inTabs = segments[0] === "(tabs)";
     const atOnboarding = segments[0] === "onboarding";
+    const inAdmin = segments[0] === "admin";
+    // Admin panel has its own auth flow — don't route it through the customer gate.
+    if (inAdmin) return;
     if (!onboarded && !atOnboarding) {
       router.replace("/onboarding");
       return;
