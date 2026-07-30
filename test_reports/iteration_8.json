@@ -1,0 +1,80 @@
+{
+  "summary": "Admin Panel Phase 3 (Products CRUD + image upload + CSV re-import + Categories) tested end-to-end. Backend: 23/23 pytest PASSED covering GET /admin/products (no filter -> 190 products; category=spices filter; in_stock=false; q=chandan case-insensitive; limit=5 caps; 403 for customer), POST /admin/products (missing required -> 422; auto price_eur = price_lek/100; id starts with 'p-'; created_at/updated_at/created_by=admin-001; product appears in list; category product_count refreshed +1), POST with image_data_url (small PNG persisted to /app/backend/static/products/<id>.png; image_url starts with /api/static/products/), PATCH /admin/products/{id} (updates fields; price column stays synced with price_lek; updated_by=admin-001; 404 on unknown id; empty payload -> 400; category swap decrements old + increments new count; image_data_url replaces image_url), DELETE /admin/products/{id} (deletes; pulls product from customer's cart items array; category product_count decremented; 404 on unknown id), POST /admin/products/import-csv (multipart file, 2 rows -> ok:true + imported>=2; new row visible and existing row updated in list; 403 for customer), GET /admin/categories (exactly 16 categories, sorted by sort_order ascending), and Phase 2 regression (dashboard summary shape, orders list, order detail + PATCH empty-> 400). Frontend Desktop (1280x900): admin login -> /admin -> sidebar 'Products' -> /admin/products loads with header '190 products'; category filter opens SearchablePicker, picking 'Spices' shrinks list to 66 rows; search 'Chandan' narrows to 3 rows; 'Add product' opens modal with all expected testIDs; filled Name='Test Playwright', Snacks pre-selected, Price=250, Stock=10 -> Create closes modal and 'Test Playwright' appears; edit icon -> modal opens with existing values, name changed to 'Test Playwright Updated' -> Save closes modal and list refreshes with new name; trash icon -> browser confirm auto-accepted -> row disappears from list; stock toggle on any product flips 'In stock' -> 'Hidden' optimistically, reload keeps flipped state (toggled back for cleanup). Frontend Mobile (390x844): admin login -> /admin -> bottom-nav 'Products' tab -> /admin/products renders 68 visible rows, 'Add product' button visible, search + category filter + CSV import all in toolbar, category filter opens as bottom-sheet ('Filter by category' + search box + list of All + 16 categories), and 'Add product' opens the New Product modal. Deprecated packages detected: none new (existing 'shadow* style props' console warning from Phase 2 is unchanged and non-blocking).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/admin/products/import-csv",
+        "issue": "Response returns {ok, imported, skipped, per_category} — but the FRONTEND (products.tsx:155) reads data.inserted / data.updated, both undefined. As a result, after a successful CSV import the success alert reads 'Imported: undefined inserted, undefined updated'. Either backend should also return {inserted, updated} counts (imported can just be split into inserted vs updated), or frontend should read imported/skipped. Reference: /app/backend/server.py:1244-1258 and /app/frontend/app/admin/products.tsx:155."
+      },
+      {
+        "endpoint": "POST /api/admin/products/import-csv",
+        "issue": "CSV importer schema mismatch with the task's stated format. `_row_to_product` (server.py:174-218) expects columns name, category (display name, slugified via CATEGORY_MAP), price, and optional 'Product Code' (used to generate a deterministic md5-based id). It does NOT accept category_slug, price_lek, or a custom id column from the CSV. A minimal CSV in the task-stated format (name,category_slug,price_lek,stock) yields 0 imported rows. Test used the actual accepted format and passed. This is only a doc/UX issue but should be surfaced to admins (e.g., accept category_slug fallback and price_lek fallback in _row_to_product)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "admin/products.tsx CSV import alert",
+        "issue": "After a successful CSV import, the alert reads 'Imported: undefined inserted, undefined updated' because the backend returns imported/skipped, not inserted/updated. Fix either side — see backend_issues.",
+        "testID": "prod-csv-btn",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "admin/products.tsx EditProductModal (desktop 1280x900)",
+        "issue": "The modal is tall enough that the 'Save changes' / 'Create product' button falls outside the 900px viewport on desktop unless the modal body is scrolled. Playwright required an explicit scroll_into_view_if_needed() call on the save button before it could be clicked. Real admins with laptops of similar height will need to scroll the modal to reach the save button. Consider making the modal body scrollable with fixed-bottom action buttons, or reducing modal padding.",
+        "testID": "prod-modal-save",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/admin/products (mobile 390x844)",
+        "issues": [
+          "Toolbar row (search + category filter + CSV import) is too crowded at 390px. The search TextInput is squished so the placeholder is truncated to 'Se...' before the filter button. Consider wrapping toolbar to two rows on <=430px width (search on row 1, filter+CSV on row 2), or hiding the CSV import button in a kebab/overflow menu on mobile."
+        ]
+      }
+    ],
+    "react_native_issues": [
+      {
+        "component": "shadow* style props (project-wide, pre-existing)",
+        "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Unchanged from iteration_6/7 — not new. Reference: multiple StyleSheet.create blocks across /app/frontend."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_admin_phase3.py",
+    "/app/test_reports/pytest/admin_phase3_iter8.xml"
+  ],
+  "action_items": [
+    "Backend: reconcile the CSV import response shape with the frontend. Easiest fix: in /app/backend/server.py:_import_products_from_csv_text (server.py:221-245) track upserted vs modified separately and return {inserted, updated} (in addition to or instead of imported/skipped). Alternatively, patch /app/frontend/app/admin/products.tsx:155 to read data.imported and data.skipped.",
+    "Backend (optional UX): teach _row_to_product to accept category_slug + price_lek + id (from CSV) as fallbacks for admins exporting from the admin panel, so the stated task-format CSV works.",
+    "Frontend: make the EditProductModal body scrollable with sticky Cancel/Save buttons at the bottom so 'Save changes' is always reachable on 900px-tall desktops.",
+    "Frontend (mobile): reflow the products toolbar to wrap on <=430px width — search TextInput placeholder is currently truncated ('Se...') because filter+CSV chips consume too much horizontal space."
+  ],
+  "critical_code_review_comments": [
+    "server.py:1101-1120 _save_data_url_as_image: correctly restricts to {png,jpg,gif,webp} and writes to /app/backend/static/products/. Returns /api/static/products/<id>.<ext> public URL. Good.",
+    "server.py:1123-1133 _refresh_category_counts: recomputes count for EVERY category (including cats with zero products), so both add and remove flows stay accurate. Good.",
+    "server.py:1160 auto price_eur uses LEK_PER_EUR=100.0 — matches CATEGORIES_SEED-era pricing and passes test.",
+    "server.py:1198-1230 admin_update_product: correctly rejects empty payloads with 400, syncs price ↔ price_lek, refreshes counts only when category_slug changed (efficient), applies image_data_url atomically.",
+    "server.py:1233-1241 admin_delete_product: pulls the product from ALL carts via db.carts.update_many({}, {$pull: ...}) — correct and cheap; also refreshes category counts.",
+    "server.py:1244-1258 admin_import_products_admin: reuses _import_products_from_csv_text; response merges {ok:true, ...result} but result keys are imported/skipped, not inserted/updated → frontend mismatch (see action items).",
+    "products.tsx:100-109 toggleStock: correct optimistic update with revert on failure. Good.",
+    "products.tsx:111-118 remove: uses confirmAction which respects Platform.OS (web=window.confirm, native=Alert.alert) — Playwright dialog handler required as documented.",
+    "products.tsx modal file size: 691 lines — approaches the 700-line threshold. Consider extracting EditProductModal to its own file when adding more fields."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_admin_phase3.py (new — 23 tests, all pass)"
+  ],
+  "success_rate": {
+    "backend": "100% (23/23 pytest)",
+    "frontend": "~95% (all critical CRUD flows PASS on desktop and mobile visual regression + open-modal PASS; two minor UX issues: CSV import alert prints 'undefined inserted, undefined updated' and desktop modal save button requires scrolling)"
+  },
+  "seed_data_creation": "None persisted. Test products (TEST_Phase3_*, TEST_CSV_*, Test Playwright*) were created and deleted within the pytest suite / Playwright flow. Stock toggle on p-3bfd8c47b187 was reverted at the end.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Public URL: https://bharat-app-8.preview.emergentagent.com. Env var (frontend): EXPO_PUBLIC_BACKEND_URL. Admin login: phone field expects LOCAL part only ('690000001'). Backend suite: `cd /app && python -m pytest backend/tests/test_admin_phase3.py -v`. Product CRUD: POST/PATCH accept image_data_url as data:image/<ext>;base64,<b64>; images are persisted to /app/backend/static/products/<id>.<ext>. CSV importer's canonical column names are: name, category (display name mapped via CATEGORY_MAP, e.g. 'Spices' -> 'spices'), price, Product Code (id md5 seed), sku, stock, description, tags, variants, brand, EAN Barcode, Weight (gm). The frontend's post-import success alert is currently BROKEN (reads 'undefined inserted, undefined updated') because the backend returns {imported, skipped} rather than {inserted, updated}. On desktop 1280x900, the EditProductModal's 'Save' button is BELOW the viewport — Playwright must call save_btn.scroll_into_view_if_needed() before clicking. On mobile 390x844, the toolbar row is too crowded: the search input placeholder gets truncated to 'Se...'. Product count on this build is 190 (task expected 189 — non-blocking).",
+  "rca_of_issue": "CSV import alert 'undefined inserted, undefined updated' RCA: admin_import_products_admin (server.py:1244-1258) returns `{ok: True, **result}` where result comes from _import_products_from_csv_text (server.py:221-245) which returns {imported, skipped, per_category}. The frontend's onCsvImport (products.tsx:140-163) reads data.inserted and data.updated, both of which are undefined in the current response. Fix in backend: change _import_products_from_csv_text to track upsert.matched_count vs upserted_id separately (use db.products.update_one().upserted_id != None to bucket into 'inserted' vs 'updated') and expose both keys — or fix in frontend by reading imported/skipped."
+}

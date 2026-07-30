@@ -1045,6 +1045,225 @@ async def admin_dashboard_summary(_: dict = Depends(require_admin)):
     }
 
 
+# ---------- Admin: Products (Phase 3) ----------
+LEK_PER_EUR = 100.0
+STATIC_PRODUCTS_DIR = os.path.join(os.path.dirname(__file__), "static", "products")
+os.makedirs(STATIC_PRODUCTS_DIR, exist_ok=True)
+
+
+class AdminProductIn(BaseModel):
+    name: str
+    description: str = ""
+    category_slug: str
+    price_lek: float
+    price_eur: Optional[float] = None
+    discount: float = 0.0
+    sku: str = ""
+    product_code: str = ""
+    ean_barcode: str = ""
+    stock: int = 0
+    in_stock: bool = True
+    weight: str = ""
+    weight_grams: Optional[float] = None
+    brand: str = ""
+    tags: List[str] = []
+    variants: List[str] = []
+    image_emoji: str = "🛒"
+    image_url: Optional[str] = None
+    unit: str = ""
+    # Optional image data URL for one-shot create/update (data:image/png;base64,...)
+    image_data_url: Optional[str] = None
+
+
+class AdminProductPatch(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    category_slug: Optional[str] = None
+    price_lek: Optional[float] = None
+    price_eur: Optional[float] = None
+    discount: Optional[float] = None
+    sku: Optional[str] = None
+    product_code: Optional[str] = None
+    ean_barcode: Optional[str] = None
+    stock: Optional[int] = None
+    in_stock: Optional[bool] = None
+    weight: Optional[str] = None
+    weight_grams: Optional[float] = None
+    brand: Optional[str] = None
+    tags: Optional[List[str]] = None
+    variants: Optional[List[str]] = None
+    image_emoji: Optional[str] = None
+    image_url: Optional[str] = None
+    unit: Optional[str] = None
+    image_data_url: Optional[str] = None
+
+
+def _save_data_url_as_image(data_url: str, product_id: str) -> Optional[str]:
+    """Persist a data URL (data:image/<ext>;base64,<b64>) into the static folder.
+    Returns the public `/api/static/products/...` URL on success."""
+    import base64 as _b64
+
+    m = re.match(r"^data:image/(\w+);base64,(.+)$", data_url, re.S)
+    if not m:
+        return None
+    ext = m.group(1).lower().replace("jpeg", "jpg")
+    if ext not in {"png", "jpg", "gif", "webp"}:
+        ext = "jpg"
+    try:
+        content = _b64.b64decode(m.group(2))
+    except Exception:
+        return None
+    fname = f"{product_id}.{ext}"
+    fpath = os.path.join(STATIC_PRODUCTS_DIR, fname)
+    with open(fpath, "wb") as f:
+        f.write(content)
+    return f"/api/static/products/{fname}"
+
+
+async def _refresh_category_counts():
+    """Recompute product_count for every category based on current products."""
+    pipe = [{"$group": {"_id": "$category_slug", "count": {"$sum": 1}}}]
+    counts: dict = {}
+    async for row in db.products.aggregate(pipe):
+        counts[row["_id"]] = row["count"]
+    async for cat in db.categories.find({}, {"_id": 0, "slug": 1}):
+        await db.categories.update_one(
+            {"slug": cat["slug"]},
+            {"$set": {"product_count": counts.get(cat["slug"], 0)}},
+        )
+
+
+@api.get("/admin/products")
+async def admin_list_products(
+    category: Optional[str] = Query(None),
+    q: Optional[str] = Query(None),
+    in_stock: Optional[bool] = Query(None),
+    limit: int = Query(500, ge=1, le=2000),
+    _: dict = Depends(require_admin),
+):
+    query: dict = {}
+    if category and category != "all":
+        query["category_slug"] = category
+    if in_stock is not None:
+        query["in_stock"] = in_stock
+    if q:
+        rx = {"$regex": q.strip(), "$options": "i"}
+        query["$or"] = [{"name": rx}, {"sku": rx}, {"product_code": rx}, {"ean_barcode": rx}]
+    products = await db.products.find(query, {"_id": 0}).sort("name", 1).limit(limit).to_list(limit)
+    return {"products": products, "count": len(products)}
+
+
+@api.post("/admin/products")
+async def admin_create_product(payload: AdminProductIn, admin: dict = Depends(require_admin)):
+    now = datetime.now(timezone.utc).isoformat()
+    pid = f"p-{secrets.token_hex(6)}"
+    price_eur = payload.price_eur if payload.price_eur is not None else round(payload.price_lek / LEK_PER_EUR, 2)
+    doc = {
+        "id": pid,
+        "name": payload.name.strip(),
+        "description": payload.description,
+        "category_slug": payload.category_slug,
+        "price": payload.price_lek,
+        "price_lek": payload.price_lek,
+        "price_eur": price_eur,
+        "discount": payload.discount,
+        "sku": payload.sku,
+        "product_code": payload.product_code,
+        "ean_barcode": payload.ean_barcode,
+        "stock": payload.stock,
+        "in_stock": payload.in_stock,
+        "weight": payload.weight,
+        "weight_grams": payload.weight_grams,
+        "weight_grams_inferred": False,
+        "brand": payload.brand,
+        "tags": payload.tags,
+        "variants": payload.variants,
+        "image_emoji": payload.image_emoji,
+        "image_url": payload.image_url,
+        "unit": payload.unit,
+        "created_at": now,
+        "updated_at": now,
+        "created_by": admin.get("id"),
+    }
+    if payload.image_data_url:
+        img_url = _save_data_url_as_image(payload.image_data_url, pid)
+        if img_url:
+            doc["image_url"] = img_url
+    await db.products.insert_one(doc)
+    doc.pop("_id", None)
+    await _refresh_category_counts()
+    return doc
+
+
+@api.patch("/admin/products/{product_id}")
+async def admin_update_product(product_id: str, payload: AdminProductPatch, admin: dict = Depends(require_admin)):
+    existing = await db.products.find_one({"id": product_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Product not found")
+    updates: dict = {}
+    for field in (
+        "name", "description", "category_slug", "price_lek", "price_eur", "discount",
+        "sku", "product_code", "ean_barcode", "stock", "in_stock",
+        "weight", "weight_grams", "brand", "tags", "variants",
+        "image_emoji", "image_url", "unit",
+    ):
+        val = getattr(payload, field)
+        if val is not None:
+            updates[field] = val
+    # Keep price (base column) synced with price_lek to preserve the existing schema.
+    if "price_lek" in updates:
+        updates["price"] = updates["price_lek"]
+        if "price_eur" not in updates:
+            updates["price_eur"] = round(updates["price_lek"] / LEK_PER_EUR, 2)
+    if payload.image_data_url:
+        img_url = _save_data_url_as_image(payload.image_data_url, product_id)
+        if img_url:
+            updates["image_url"] = img_url
+    if not updates:
+        raise HTTPException(status_code=400, detail="Nothing to update")
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    updates["updated_by"] = admin.get("id")
+    await db.products.update_one({"id": product_id}, {"$set": updates})
+    updated = await db.products.find_one({"id": product_id}, {"_id": 0})
+    if "category_slug" in updates:
+        await _refresh_category_counts()
+    return updated
+
+
+@api.delete("/admin/products/{product_id}")
+async def admin_delete_product(product_id: str, _: dict = Depends(require_admin)):
+    r = await db.products.delete_one({"id": product_id})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Product not found")
+    # Also remove from any carts.
+    await db.carts.update_many({}, {"$pull": {"items": {"product_id": product_id}}})
+    await _refresh_category_counts()
+    return {"ok": True, "deleted": product_id}
+
+
+@api.post("/admin/products/import-csv")
+async def admin_import_products_admin(
+    file: UploadFile = File(...),
+    replace: bool = Query(False, description="If true, delete all existing products before importing"),
+    _: dict = Depends(require_admin),
+):
+    """Admin-token protected variant of the legacy X-Admin-Secret CSV import."""
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("latin-1")
+    result = await _import_products_from_csv_text(text, replace=replace)
+    await _refresh_category_counts()
+    return {"ok": True, **result}
+
+
+@api.get("/admin/categories")
+async def admin_list_categories(_: dict = Depends(require_admin)):
+    cats = await db.categories.find({}, {"_id": 0}).sort("sort_order", 1).to_list(200)
+    return {"categories": cats}
+
+
 # ---------- Geo / address picker (Google Places proxy) ----------
 SERVICEABLE_COUNTRY_CODES = {"AL"}
 
