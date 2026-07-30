@@ -957,6 +957,17 @@ async def admin_update_order(order_id: str, payload: AdminOrderPatch, admin: dic
         mongo_ops["$push"] = push
     await db.orders.update_one({"id": order_id}, mongo_ops)
     updated = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    # Mirror admin_get_order: attach customer_name/phone/email so the /admin/order-detail
+    # screen doesn't blank the Customer row after a PATCH hydrates from this response.
+    if updated and updated.get("user_id"):
+        u = await db.users.find_one(
+            {"id": updated["user_id"]},
+            {"_id": 0, "full_name": 1, "phone": 1, "email": 1},
+        )
+        if u:
+            updated["customer_name"] = u.get("full_name") or ""
+            updated["customer_phone"] = u.get("phone") or ""
+            updated["customer_email"] = u.get("email") or ""
     return updated
 
 
