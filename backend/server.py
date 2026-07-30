@@ -221,7 +221,8 @@ def _row_to_product(row: dict) -> Optional[dict]:
 async def _import_products_from_csv_text(csv_text: str, replace: bool = False) -> dict:
     """Parse CSV text, upsert products by id. Returns counts."""
     reader = csv.DictReader(io.StringIO(csv_text))
-    imported = 0
+    inserted = 0
+    updated = 0
     skipped = 0
     per_cat: dict = {}
     if replace:
@@ -231,18 +232,26 @@ async def _import_products_from_csv_text(csv_text: str, replace: bool = False) -
         if not prod:
             skipped += 1
             continue
-        await db.products.update_one({"id": prod["id"]}, {"$set": prod}, upsert=True)
+        r = await db.products.update_one({"id": prod["id"]}, {"$set": prod}, upsert=True)
+        if r.upserted_id:
+            inserted += 1
+        else:
+            updated += 1
         per_cat[prod["category_slug"]] = per_cat.get(prod["category_slug"], 0) + 1
-        imported += 1
     # refresh category product_count
-    for slug, n in per_cat.items():
+    for slug in per_cat:
         real_n = await db.products.count_documents({"category_slug": slug})
         await db.categories.update_one({"slug": slug}, {"$set": {"product_count": real_n}})
-    # also set counts for cats with 0 products
     for c in CATEGORIES_SEED:
         real_n = await db.products.count_documents({"category_slug": c["slug"]})
         await db.categories.update_one({"slug": c["slug"]}, {"$set": {"product_count": real_n}})
-    return {"imported": imported, "skipped": skipped, "per_category": per_cat}
+    return {
+        "inserted": inserted,
+        "updated": updated,
+        "imported": inserted + updated,  # legacy alias for the old X-Admin-Secret endpoint
+        "skipped": skipped,
+        "per_category": per_cat,
+    }
 
 
 # ------------------------------------------------------------------

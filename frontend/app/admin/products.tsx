@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator, Alert, FlatList, Image, Modal, Platform, Pressable,
-  RefreshControl, StyleSheet, Switch, Text, TextInput, View,
+  RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -181,7 +181,7 @@ export default function AdminProducts() {
 
       {/* Toolbar */}
       <View style={styles.toolbar}>
-        <View style={[styles.searchBox, { flex: 1 }]}>
+        <View style={[styles.searchBox, { width: "100%" }]}>
           <Ionicons name="search" size={16} color={colors.textMuted} />
           <TextInput
             value={q}
@@ -192,41 +192,43 @@ export default function AdminProducts() {
             testID="prod-search"
           />
         </View>
-        <Pressable onPress={() => setShowFilterPicker(true)} style={styles.catBtn} testID="prod-cat-filter">
-          <Ionicons name="filter" size={16} color={colors.primary} />
-          <Text style={styles.catBtnText} numberOfLines={1}>
-            {activeCat?.name || "All categories"}
-          </Text>
-          <Ionicons name="chevron-down" size={14} color={colors.textMuted} />
-        </Pressable>
-        {Platform.OS === "web" && (
-          <>
-            <Pressable
-              onPress={() => csvInputRef.current?.click()}
-              style={styles.catBtn}
-              disabled={csvBusy}
-              testID="prod-csv-btn"
-            >
-              {csvBusy ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Ionicons name="cloud-upload" size={16} color={colors.primary} />
-              )}
-              <Text style={styles.catBtnText}>CSV import</Text>
-            </Pressable>
-            {/* @ts-ignore — plain DOM node for web file picker */}
-            <input
-              ref={csvInputRef as any}
-              type="file"
-              accept=".csv"
-              style={{ display: "none" }}
-              onChange={(e: any) => {
-                const f = e.target.files?.[0];
-                if (f) onCsvImport(f, false);
-              }}
-            />
-          </>
-        )}
+        <View style={styles.toolbarRow}>
+          <Pressable onPress={() => setShowFilterPicker(true)} style={[styles.catBtn, { flex: 1 }]} testID="prod-cat-filter">
+            <Ionicons name="filter" size={16} color={colors.primary} />
+            <Text style={styles.catBtnText} numberOfLines={1}>
+              {activeCat?.name || "All categories"}
+            </Text>
+            <Ionicons name="chevron-down" size={14} color={colors.textMuted} />
+          </Pressable>
+          {Platform.OS === "web" && (
+            <>
+              <Pressable
+                onPress={() => csvInputRef.current?.click()}
+                style={styles.catBtn}
+                disabled={csvBusy}
+                testID="prod-csv-btn"
+              >
+                {csvBusy ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Ionicons name="cloud-upload" size={16} color={colors.primary} />
+                )}
+                <Text style={styles.catBtnText}>CSV import</Text>
+              </Pressable>
+              {/* @ts-ignore — plain DOM node for web file picker */}
+              <input
+                ref={csvInputRef as any}
+                type="file"
+                accept=".csv"
+                style={{ display: "none" }}
+                onChange={(e: any) => {
+                  const f = e.target.files?.[0];
+                  if (f) onCsvImport(f, false);
+                }}
+              />
+            </>
+          )}
+        </View>
       </View>
 
       {/* List */}
@@ -433,7 +435,11 @@ function EditProductModal({
             </Pressable>
           </View>
 
-          <View style={modalStyles.body}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={modalStyles.body}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* Image */}
             <View style={modalStyles.imgRow}>
               <Pressable onPress={pickImage} style={modalStyles.imgBox} testID="prod-modal-image">
@@ -546,27 +552,28 @@ function EditProductModal({
             </View>
 
             {error && <Text style={{ color: colors.error, fontSize: 12, fontWeight: "700" }}>{error}</Text>}
+          </ScrollView>
 
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
-              <Pressable onPress={onClose} style={[styles.ctaSecondary, { flex: 1 }]} testID="prod-modal-cancel">
-                <Text style={styles.ctaSecondaryText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={save}
-                disabled={saving}
-                style={[styles.ctaPrimary, { flex: 1 }, saving && { opacity: 0.6 }]}
-                testID="prod-modal-save"
-              >
-                {saving ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark" size={16} color="#fff" />
-                    <Text style={styles.ctaPrimaryText}>{isEdit ? "Save changes" : "Create product"}</Text>
-                  </>
-                )}
-              </Pressable>
-            </View>
+          {/* Sticky action bar so Save is always visible */}
+          <View style={modalStyles.actionBar}>
+            <Pressable onPress={onClose} style={[styles.ctaSecondary, { flex: 1 }]} testID="prod-modal-cancel">
+              <Text style={styles.ctaSecondaryText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={save}
+              disabled={saving}
+              style={[styles.ctaPrimary, { flex: 1 }, saving && { opacity: 0.6 }]}
+              testID="prod-modal-save"
+            >
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark" size={16} color="#fff" />
+                  <Text style={styles.ctaPrimaryText}>{isEdit ? "Save changes" : "Create product"}</Text>
+                </>
+              )}
+            </Pressable>
           </View>
         </View>
       </View>
@@ -601,7 +608,8 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: { fontSize: 22, fontWeight: "800", color: colors.textMain, letterSpacing: -0.3 },
   subtitle: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  toolbar: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  toolbar: { gap: 8 },
+  toolbarRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   searchBox: {
     flexDirection: "row", alignItems: "center", gap: 8,
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
