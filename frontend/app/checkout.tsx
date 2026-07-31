@@ -19,7 +19,7 @@ import { ALBANIA_QARKS, bashkiaFor, matchQark, matchBashkia } from "@/src/data/a
 import { SearchablePicker, type PickerItem } from "@/src/components/searchable-picker";
 import { DropdownField } from "@/src/components/dropdown-field";
 
-const FREE_MIN_LEK = 2000;
+const FREE_MIN_LEK = 1500;
 const DELIVERY_FEE_LEK = 99;
 const LEK_PER_EUR = 100;
 

@@ -54,3 +54,21 @@ A React Native Expo mobile app for **Bharat Bazaar** (companion to mybazaarcart.
 ## Tech
 - Expo SDK 54, expo-router, react-native-safe-area-context, react-native-keyboard-controller
 - FastAPI, motor, bcrypt, PyJWT, Twilio
+
+## Admin Module (Phases 1–4 — complete)
+- **Adaptive UI**: tab bar on mobile, sidebar on wide screens. Route: `/admin/*`.
+- **Phase 1** — Auth: `POST /api/admin/auth/login` (403 for non-admins), `GET /api/admin/verify`. Seeded admin `+355690000001 / admin123`.
+- **Phase 2** — Order tracking: list/detail/update status + delivery person, KPI dashboard `/api/admin/dashboard/summary`.
+- **Phase 3** — Product management: CRUD + image upload (data URL → static) + CSV bulk import + category counters refresh.
+- **Phase 4** — Offers:
+  - Home banners (rotating carousel component `OffersCarousel` on Home tab)
+  - Coupon codes (WELCOME10 seeded — 10% off, min 1000 L, 300 L cap, 1 per user). Cart shows inline coupon input; validated live on subtotal change; order stored with `coupon_code`, `coupon_discount_lek`, and increments `offer.usage_count`.
+  - Category-wide discounts (percent off applied per line at order time; stored on order.items[]).
+  - Endpoints: `GET /api/offers/banners`, `GET /api/offers/category-discounts`, `POST /api/offers/validate-coupon` (public); `GET|POST|PATCH|DELETE /api/admin/offers`, `POST /api/admin/offers/{id}/toggle` (admin JWT).
+
+## Backend architecture (post-refactor)
+- `server.py` (thin, ~65 lines) mounts routers only
+- `config.py`, `db.py`, `security.py`, `models.py`
+- `routes/`: catalog, auth, me, cart, orders, geo, offers, admin_auth, admin_orders, admin_products, admin_offers
+- `services/`: csv_import, cart, images, offers, seed
+
