@@ -11,6 +11,7 @@ import { api, resolveImageUrl, type Category, type Product } from "@/src/lib/api
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { ProductAddButton } from "@/src/components/product-add-button";
 import { AnimatedPromoBanner } from "@/src/components/animated-promo-banner";
+import { OffersCarousel } from "@/src/components/offers-carousel";
 import { colors, radius, spacing } from "@/src/theme";
 
 export default function Home() {
@@ -107,6 +108,7 @@ export default function Home() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.primary} />}
         ListHeaderComponent={
           <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+            <OffersCarousel testID="home-offers-carousel" />
             <AnimatedPromoBanner
               headline={t("promo_headline")}
               amount={t("promo_amount")}

@@ -45,6 +45,14 @@ type Ctx = {
   applyCart: (items: Array<{ product_id: string; qty: number }> | undefined | null, count?: number) => void;
   selectedAddress: SelectedAddress | null;
   setSelectedAddress: (a: SelectedAddress | null) => void;
+  appliedCoupon: AppliedCoupon | null;
+  setAppliedCoupon: (c: AppliedCoupon | null) => void;
+};
+
+export type AppliedCoupon = {
+  code: string;
+  discount_lek: number;
+  message?: string;
 };
 
 export type SelectedAddress = {
@@ -74,6 +82,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [cartCount, setCartCount] = useState(0);
   const [cartQtyMap, setCartQtyMap] = useState<Record<string, number>>({});
   const [selectedAddress, setSelectedAddress] = useState<SelectedAddress | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
 
   const applyCart = useCallback(
     (items: Array<{ product_id: string; qty: number }> | undefined | null, count?: number) => {
@@ -132,6 +141,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCartCount(0);
     setCartQtyMap({});
     setSelectedAddress(null);
+    setAppliedCoupon(null);
     await storage.secureRemove(STORAGE_TOKEN);
     await storage.removeItem(STORAGE_USER);
   }, []);
@@ -182,8 +192,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       applyCart,
       selectedAddress,
       setSelectedAddress,
+      appliedCoupon,
+      setAppliedCoupon,
     }),
-    [ready, onboarded, setOnboarded, token, user, setSession, clearSession, refreshUser, lang, setLang, currency, setCurrency, t, cartCount, cartQtyMap, applyCart, selectedAddress],
+    [ready, onboarded, setOnboarded, token, user, setSession, clearSession, refreshUser, lang, setLang, currency, setCurrency, t, cartCount, cartQtyMap, applyCart, selectedAddress, appliedCoupon],
   );
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;

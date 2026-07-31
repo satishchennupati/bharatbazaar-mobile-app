@@ -1,0 +1,59 @@
+{
+  "summary": "Phase 4 Offers (Home banners + Coupon codes + Category-wide discounts) tested end-to-end after server.py refactor into routes/*.py + services/*.py. Backend: 37/37 pytest PASSED covering (a) regression of existing endpoints (health, categories, products, banner, admin verify, admin dashboard, me, cart, geo autocomplete), (b) NEW public offers endpoints (GET /offers/banners returns 2 seeded banners; GET /offers/category-discounts returns discounts map; GET /offers/category-discount/{slug} returns null for unknown; POST /offers/validate-coupon WELCOME10 valid at 2000L subtotal returns discount_lek=200, at 5000L cap enforced returns 300, below 1000L min rejected with 'Minimum order' message, invalid code returns valid:false, case-insensitive match works), (c) NEW admin offers CRUD (401 without auth, 403 for non-admin quick-user token, GET list all + filter by type, POST create banner/coupon/category_discount with type normalization, 409 duplicate coupon code, 400 for coupon without code / category_discount without slug / cat_discount_percent out of range, GET by id, 404 unknown id, PATCH updates + persists, POST toggle flips active), (d) order placement with WELCOME10 coupon: total_lek reflects discount, coupon_code + coupon_discount_lek + total_discount_lek stored on order, /api/orders/{id} GET verifies persistence, invalid coupon → 400, sub-minimum cart with coupon → 400, (e) order placement with active category_discount: order.category_discount_lek > 0, order.items[].cat_discount_percent == 20 for matching category, cat_discount_lek + line_lek_after_cat_discount populated. Frontend Mobile (390x844): OffersCarousel renders on home with both seeded banners (off-welcome + off-freeship); auto-rotates every 4.2s as expected. Cart coupon input auto-uppercases 'welcome10' → 'WELCOME10'; applying WELCOME10 after prior order correctly shows 'You've already used this coupon' from backend (per_user_limit=1 enforcement working end-to-end); applying a fresh FRESH_UI 15% coupon shows applied card 'Coupon applied · you save 264 L' with Coupon(FRESH_UI) -264 L line item, and Total drops from 1859 L → 1595 L (matches 1760*0.15=264). Frontend Desktop (1280x900): /admin/offers loads with sidebar Offers active; 3 tabs render (Banners/Coupons/Category %); Banners tab shows 2 seeded banners with color previews + toggles + edit/delete; Coupons tab shows WELCOME10 with 'Used 1' meta chip (proves usage_count increment from prior order); Category % tab renders and picker works; +New modal opens with type chips (banner/coupon/category_discount) + all dynamic fields (title, description, coupon_code, discount_value, min_order, max_cap, usage_limit, per_user_limit, starts_at, ends_at, priority, active toggle). Deprecated packages detected: none new. Known warning 'shadow* style props deprecated' unchanged.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/(tabs)/cart (mobile 390x844)",
+        "issues": [
+          "Cart shows 'Add 240 L more for FREE delivery' (frontend threshold 2000 L) while backend FREE_DELIVERY_MIN_LEK=1500 (a 1760 L cart on backend already qualifies for free delivery, but frontend still charges 99 L delivery fee for that order preview). This is the pre-existing constant mismatch called out in the task's agent_to_agent_context_note - not part of Phase 4 - but worth confirming on retest that admin/user views agree once main agent aligns them."
+        ]
+      }
+    ],
+    "react_native_issues": [
+      {
+        "component": "shadow* style props (project-wide, pre-existing)",
+        "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Unchanged from previous iterations - not new. Reference: multiple StyleSheet.create blocks across /app/frontend."
+      },
+      {
+        "component": "props.pointerEvents (react-native-web)",
+        "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents' - pre-existing web-compat warning, non-blocking. Comes from RN core / ScrollView on web."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_offers_phase4.py",
+    "/app/test_reports/pytest/offers_phase4_iter9.xml"
+  ],
+  "action_items": [
+    "Backend/Frontend consistency: align FREE delivery threshold - backend config.FREE_DELIVERY_MIN_LEK=1500 vs frontend cart 'Add X L more for FREE delivery' constant (2000 L). Not a Phase 4 bug per task note but should be reconciled since customer sees mismatched free-shipping messaging vs actual order delivery_fee.",
+    "Optional: consider seeding an active category_discount for demo purposes (currently only banners + WELCOME10 coupon are seeded, so /offers/category-discounts returns empty map by default until admin creates one)."
+  ],
+  "critical_code_review_comments": [
+    "routes/offers.py:57-65 validate_coupon endpoint correctly enforces optional auth via Bearer header — user_id is inferred from JWT if present to enforce per_user_limit; unauthenticated calls skip that check (used for cart preview before login).",
+    "routes/admin_offers.py:96-102 unique coupon_code enforced via case-insensitive regex match on active coupons before insert; incoming code is upper-cased on write. Good.",
+    "routes/admin_offers.py:24-44 _normalize_offer_type strips irrelevant fields per type — keeps documents tidy and prevents accidental leaks between types.",
+    "services/offers.py:36-47 offer_is_active_now respects active flag + starts_at/ends_at window with proper ISO parsing + UTC fallback. Good.",
+    "services/offers.py:92-108 compute_coupon_discount enforces min_order, percent vs fixed, max_discount_lek cap, and clamps to subtotal. All edge cases correct.",
+    "routes/orders.py:38-52 category discount applied first, then coupon on subtotal_after_cat — correct precedence, prevents double-discount abuse. Free-delivery threshold computed on payable_pre_shipping (post-discount) — reasonable.",
+    "routes/orders.py:82-86 usage_count $inc happens ONLY after successful order insert — atomic within request scope; if the DB write of the order fails, usage_count is not bumped. Good.",
+    "server.py is now 68 lines - excellent modularization. All 11 route modules mounted cleanly under /api prefix."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_offers_phase4.py (new, 37 tests all pass)"
+  ],
+  "success_rate": {
+    "backend": "100% (37/37 pytest)",
+    "frontend": "100% (carousel renders + rotates, cart coupon flow validates + applies + shows discount, admin offers page loads with all 3 tabs + New modal with dynamic fields per type)"
+  },
+  "seed_data_creation": "Test coupons (TEST_P4, FRESH_UI) and TEST_CatDisc offers were created during the run and cleaned up via test_zzz_cleanup + a final curl sweep. No lingering test artifacts.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Public URL: https://bharat-app-8.preview.emergentagent.com. Env: EXPO_PUBLIC_BACKEND_URL. Backend suite: `cd /app && python -m pytest backend/tests/test_offers_phase4.py -v`. Auth quirks: (1) Storage.retrieve calls JSON.parse on ALL values, so when seeding localStorage for automated tests, string values MUST be JSON.stringified (e.g. localStorage.setItem('mbc_lang', JSON.stringify('en'))). mbc_user's user object is JSON.stringify'd twice on write. mbc_onboarded is written as bare 'true' string. (2) Admin login endpoint expects full E.164 phone (+355690000001) via /api/admin/auth/login; admin login FORM on /admin/login only accepts local part (last 9 digits) - form prepends +355 client-side. (3) Products endpoint returns list directly (not {products: []}). Categories endpoint returns {categories: []}. (4) WELCOME10 coupon has per_user_limit=1, so the quick-access user (+355695808480) can only redeem it once - after the first order test that consumed it, subsequent /offers/validate-coupon returns 'You've already used this coupon'. To retest coupon apply flow, create a fresh coupon via admin API (see FRESH_UI pattern in this iteration). (5) The two known pre-existing lint warnings in (tabs)/index.tsx remain; not part of Phase 4.",
+  "rca_of_issue": "N/A - no bugs found in Phase 4 offers implementation. All 37 backend + all frontend integration flows PASS. The only surfaced item is the pre-existing frontend constant mismatch (free_delivery_min: FE=2000 vs BE=1500) which is explicitly out-of-scope per the task's agent_to_agent_context_note."
+}

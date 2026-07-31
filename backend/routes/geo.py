@@ -1,0 +1,293 @@
+"""Geo endpoints (Google Places/Geocoding proxy + interactive map picker HTML)."""
+from __future__ import annotations
+
+import httpx
+from fastapi import APIRouter, HTTPException, Query, Response
+
+from config import GOOGLE_MAPS_API_KEY, SERVICEABLE_COUNTRY_CODES
+
+router = APIRouter(prefix="/geo")
+
+
+def _parse_google_address_components(components: list) -> dict:
+    parts = {"country_code": None}
+    for comp in components:
+        types = comp.get("types", [])
+        if "country" in types:
+            parts["country_code"] = comp.get("short_name")
+            parts["country"] = comp.get("long_name")
+        if "postal_code" in types:
+            parts["postal_code"] = comp.get("long_name")
+        if "administrative_area_level_1" in types:
+            parts["state"] = comp.get("long_name")
+        if "administrative_area_level_2" in types:
+            parts.setdefault("city", comp.get("long_name"))
+        if "locality" in types:
+            parts["city"] = comp.get("long_name")
+        if "sublocality" in types or "sublocality_level_1" in types or "neighborhood" in types:
+            parts.setdefault("area", comp.get("long_name"))
+        if "route" in types:
+            parts.setdefault("street", comp.get("long_name"))
+        if "street_number" in types:
+            parts["street_number"] = comp.get("long_name")
+    return parts
+
+
+@router.get("/autocomplete")
+async def geo_autocomplete(input: str = Query(..., min_length=2), country: str = Query("al")):
+    if not GOOGLE_MAPS_API_KEY:
+        raise HTTPException(status_code=500, detail="Maps API key not configured")
+    params = {
+        "input": input,
+        "key": GOOGLE_MAPS_API_KEY,
+        "components": f"country:{country.lower()}",
+        "language": "en",
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get("https://maps.googleapis.com/maps/api/place/autocomplete/json", params=params)
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail="Places autocomplete failed")
+    data = r.json()
+    preds = [
+        {
+            "place_id": p.get("place_id"),
+            "description": p.get("description"),
+            "main_text": (p.get("structured_formatting") or {}).get("main_text"),
+            "secondary_text": (p.get("structured_formatting") or {}).get("secondary_text"),
+        }
+        for p in data.get("predictions", [])
+    ]
+    return {"predictions": preds, "status": data.get("status")}
+
+
+@router.get("/place-details")
+async def geo_place_details(place_id: str = Query(...)):
+    if not GOOGLE_MAPS_API_KEY:
+        raise HTTPException(status_code=500, detail="Maps API key not configured")
+    params = {
+        "place_id": place_id,
+        "key": GOOGLE_MAPS_API_KEY,
+        "fields": "formatted_address,geometry/location,address_components,name",
+        "language": "en",
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get("https://maps.googleapis.com/maps/api/place/details/json", params=params)
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail="Places details failed")
+    data = r.json()
+    result = data.get("result") or {}
+    loc = ((result.get("geometry") or {}).get("location") or {})
+    parsed = _parse_google_address_components(result.get("address_components", []))
+    line1 = " ".join([p for p in [parsed.get("street_number"), parsed.get("street")] if p]) or (result.get("name") or "")
+    serviceable = parsed["country_code"] in SERVICEABLE_COUNTRY_CODES
+    return {
+        "place_id": place_id,
+        "formatted_address": result.get("formatted_address"),
+        "lat": loc.get("lat"),
+        "lng": loc.get("lng"),
+        "country_code": parsed["country_code"],
+        "country": parsed.get("country"),
+        "state": parsed.get("state", ""),
+        "city": parsed.get("city"),
+        "area": parsed.get("area", ""),
+        "postal_code": parsed.get("postal_code", ""),
+        "line1": line1,
+        "serviceable": serviceable,
+        "unserviceable_reason": None if serviceable else "We currently deliver only within Albania.",
+    }
+
+
+@router.get("/reverse-geocode")
+async def geo_reverse_geocode(lat: float = Query(...), lng: float = Query(...)):
+    if not GOOGLE_MAPS_API_KEY:
+        raise HTTPException(status_code=500, detail="Maps API key not configured")
+    params = {"latlng": f"{lat},{lng}", "key": GOOGLE_MAPS_API_KEY, "language": "en"}
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get("https://maps.googleapis.com/maps/api/geocode/json", params=params)
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail="Reverse geocoding failed")
+    data = r.json()
+    results = data.get("results") or []
+    if not results:
+        return {
+            "place_id": None,
+            "formatted_address": f"{lat:.5f}, {lng:.5f}",
+            "lat": lat, "lng": lng,
+            "country_code": None, "country": "",
+            "state": "", "city": "", "area": "", "postal_code": "", "line1": "",
+            "serviceable": False,
+            "unserviceable_reason": "No address found for this location.",
+        }
+    best = next(
+        (res for res in results if any(t in ("street_address", "premise", "route") for t in res.get("types", []))),
+        results[0],
+    )
+    parsed = _parse_google_address_components(best.get("address_components", []))
+    line1 = " ".join([p for p in [parsed.get("street_number"), parsed.get("street")] if p])
+    if not line1 and best.get("formatted_address"):
+        line1 = best["formatted_address"].split(",")[0].strip()
+    area = parsed.get("area", "")
+    if not area and best.get("formatted_address"):
+        parts = [p.strip() for p in best["formatted_address"].split(",")]
+        for frag in parts[1:-1]:
+            if frag and frag.lower() != (parsed.get("city") or "").lower():
+                area = frag
+                break
+    serviceable = parsed["country_code"] in SERVICEABLE_COUNTRY_CODES
+    return {
+        "place_id": best.get("place_id"),
+        "formatted_address": best.get("formatted_address"),
+        "lat": lat, "lng": lng,
+        "country_code": parsed["country_code"],
+        "country": parsed.get("country", ""),
+        "state": parsed.get("state", ""),
+        "city": parsed.get("city", ""),
+        "area": area,
+        "postal_code": parsed.get("postal_code", ""),
+        "line1": line1,
+        "serviceable": serviceable,
+        "unserviceable_reason": None if serviceable else "We currently deliver only within Albania.",
+    }
+
+
+@router.get("/map-picker")
+async def geo_map_picker_page(
+    lat: float = Query(41.3275),
+    lng: float = Query(19.8187),
+    zoom: int = Query(12, ge=6, le=19),
+):
+    if not GOOGLE_MAPS_API_KEY:
+        raise HTTPException(status_code=500, detail="Maps API key not configured")
+    html = f"""<!doctype html>
+<html>
+<head>
+  <meta charset='utf-8'/>
+  <meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no'/>
+  <title>Pick location</title>
+  <style>
+    html, body, #map {{ height: 100%; margin: 0; padding: 0; }}
+    body {{ font-family: -apple-system, system-ui, sans-serif; background: #fff; overflow: hidden; }}
+    #map {{ width: 100%; touch-action: none; }}
+    .center-pin {{
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -100%);
+      pointer-events: none;
+      z-index: 999;
+      filter: drop-shadow(0 3px 4px rgba(0,0,0,0.4));
+    }}
+    .center-pin svg {{ display: block; }}
+    .hint {{
+      position: fixed; bottom: 12px; left: 12px; right: 12px;
+      background: rgba(255,255,255,0.95); border-radius: 12px;
+      padding: 10px 14px; font-size: 13px; color: #333;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15); text-align: center;
+      z-index: 1000; font-weight: 600;
+    }}
+    .fatal {{
+      position: fixed; inset: 0; display: flex; align-items: center;
+      justify-content: center; padding: 24px; text-align: center;
+      color: #b71c1c; font-size: 14px; font-weight: 600;
+      background: #fff;
+    }}
+  </style>
+</head>
+<body>
+  <div id='map'></div>
+  <div class='center-pin' aria-hidden='true'>
+    <svg width='40' height='52' viewBox='0 0 40 52' xmlns='http://www.w3.org/2000/svg'>
+      <path d='M20 0C9 0 0 9 0 20c0 15 20 32 20 32s20-17 20-32C40 9 31 0 20 0z' fill='#FF5722'/>
+      <circle cx='20' cy='20' r='7' fill='#fff'/>
+    </svg>
+  </div>
+  <div class='hint'>Drag the map to place the pin</div>
+  <script>
+    (function() {{
+      window.__gm_ready = function() {{
+        try {{
+          var map = new google.maps.Map(document.getElementById('map'), {{
+            center: {{ lat: {lat}, lng: {lng} }},
+            zoom: {zoom},
+            disableDefaultUI: false,
+            zoomControl: true,
+            streetViewControl: false,
+            mapTypeControl: false,
+            fullscreenControl: false,
+            gestureHandling: 'greedy',
+            clickableIcons: false,
+          }});
+          var debounce;
+          var userInteracted = false;
+          function post() {{
+            var c = map.getCenter();
+            if (!c) return;
+            var payload = {{ type: 'map-pin', lat: c.lat(), lng: c.lng(), zoom: map.getZoom() }};
+            var msg = JSON.stringify(payload);
+            try {{ window.parent.postMessage(msg, '*'); }} catch(e) {{}}
+            if (window.ReactNativeWebView) {{
+              try {{ window.ReactNativeWebView.postMessage(msg); }} catch(e) {{}}
+            }}
+          }}
+          map.addListener('dragstart', function() {{ userInteracted = true; }});
+          map.addListener('dragend', function() {{
+            clearTimeout(debounce);
+            debounce = setTimeout(post, 250);
+          }});
+          map.addListener('zoom_changed', function() {{
+            if (!userInteracted) return;
+            clearTimeout(debounce);
+            debounce = setTimeout(post, 250);
+          }});
+          window.addEventListener('message', function(ev) {{
+            try {{
+              var data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+              if (data && data.type === 'fly-to' && typeof data.lat === 'number') {{
+                userInteracted = true;
+                map.panTo({{ lat: data.lat, lng: data.lng }});
+                if (data.zoom) map.setZoom(data.zoom);
+                clearTimeout(debounce);
+                debounce = setTimeout(post, 500);
+              }}
+            }} catch(e) {{}}
+          }});
+          setTimeout(post, 400);
+        }} catch (err) {{
+          document.body.innerHTML = "<div class='fatal'>Unable to load Google Maps. Please make sure the Maps JavaScript API is enabled on the server key.</div>";
+        }}
+      }};
+      window.gm_authFailure = function() {{
+        document.body.innerHTML = "<div class='fatal'>Google Maps authentication failed. Please check that the API key is valid and Maps JavaScript API is enabled.</div>";
+      }};
+    }})();
+  </script>
+  <script async defer
+    src='https://maps.googleapis.com/maps/api/js?key={GOOGLE_MAPS_API_KEY}&callback=__gm_ready&loading=async&v=weekly'></script>
+</body>
+</html>"""
+    return Response(content=html, media_type="text/html; charset=utf-8")
+
+
+@router.get("/static-map")
+async def geo_static_map(
+    lat: float = Query(...),
+    lng: float = Query(...),
+    zoom: int = Query(15, ge=8, le=20),
+    width: int = Query(600, ge=100, le=800),
+    height: int = Query(300, ge=100, le=400),
+):
+    if not GOOGLE_MAPS_API_KEY:
+        raise HTTPException(status_code=500, detail="Maps API key not configured")
+    url = (
+        "https://maps.googleapis.com/maps/api/staticmap"
+        f"?center={lat},{lng}&zoom={zoom}&size={width}x{height}"
+        f"&markers=color:0xFF5722%7C{lat},{lng}&key={GOOGLE_MAPS_API_KEY}"
+        "&scale=2&style=feature:poi|element:labels|visibility:off"
+    )
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        r = await client.get(url)
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail="static_map_unavailable")
+    return Response(
+        content=r.content,
+        media_type=r.headers.get("content-type", "image/png"),
+        headers={"Cache-Control": "public, max-age=86400"},
+    )

@@ -1,8 +1,8 @@
 /**
- * Cart: list items, edit qty, see totals, checkout.
+ * Cart: list items, edit qty, apply coupon, see totals, checkout.
  */
-import { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,10 +17,13 @@ const LEK_PER_EUR = 100;
 
 export default function CartScreen() {
   const router = useRouter();
-  const { t, currency, setCartCount } = useApp();
+  const { t, currency, setCartCount, appliedCoupon, setAppliedCoupon } = useApp();
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [couponInput, setCouponInput] = useState("");
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -60,6 +63,43 @@ export default function CartScreen() {
     }
   };
 
+  // Re-validate applied coupon whenever the cart subtotal changes so
+  // "min order" thresholds are respected while the user edits quantities.
+  const reValidateCoupon = useCallback(
+    async (code: string, subtotal: number): Promise<{ ok: boolean; discount: number; message?: string }> => {
+      try {
+        const r = await api.post<{ valid: boolean; discount_lek: number; message?: string }>(
+          "/offers/validate-coupon",
+          { code, subtotal_lek: subtotal },
+          true,
+        );
+        return { ok: r.valid, discount: r.discount_lek || 0, message: r.message };
+      } catch (e: any) {
+        return { ok: false, discount: 0, message: e?.message };
+      }
+    },
+    [],
+  );
+
+  const currentSubLek = cart?.subtotal_lek || 0;
+  useEffect(() => {
+    if (!appliedCoupon || !cart || cart.items.length === 0) return;
+    let cancelled = false;
+    reValidateCoupon(appliedCoupon.code, currentSubLek).then((r) => {
+      if (cancelled) return;
+      if (!r.ok) {
+        setAppliedCoupon(null);
+        setCouponError(r.message || "Coupon no longer applies");
+      } else if (r.discount !== appliedCoupon.discount_lek) {
+        setAppliedCoupon({ code: appliedCoupon.code, discount_lek: r.discount, message: r.message });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSubLek]);
+
   if (loading) {
     return (
       <SafeAreaView style={styles.center}>
@@ -71,12 +111,36 @@ export default function CartScreen() {
   const isEmpty = !cart || cart.items.length === 0;
   const subLek = cart?.subtotal_lek || 0;
   const subEur = cart?.subtotal_eur || 0;
-  const isFree = subLek >= FREE_MIN_LEK;
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+    setCouponBusy(true);
+    setCouponError(null);
+    const r = await reValidateCoupon(code, subLek);
+    setCouponBusy(false);
+    if (!r.ok) {
+      setCouponError(r.message || "Invalid coupon");
+      setAppliedCoupon(null);
+      return;
+    }
+    setAppliedCoupon({ code, discount_lek: r.discount, message: r.message });
+    setCouponInput("");
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError(null);
+  };
+
+  const couponDiscountLek = appliedCoupon?.discount_lek || 0;
+  const couponDiscountEur = couponDiscountLek / LEK_PER_EUR;
+  const isFree = subLek - couponDiscountLek >= FREE_MIN_LEK;
   const feeLek = isFree ? 0 : DELIVERY_FEE_LEK;
   const feeEur = isFree ? 0 : DELIVERY_FEE_LEK / LEK_PER_EUR;
-  const totalLek = subLek + feeLek;
-  const totalEur = subEur + feeEur;
-  const needForFree = Math.max(0, FREE_MIN_LEK - subLek);
+  const totalLek = Math.max(0, subLek - couponDiscountLek) + feeLek;
+  const totalEur = Math.max(0, subEur - couponDiscountEur) + feeEur;
+  const needForFree = Math.max(0, FREE_MIN_LEK - (subLek - couponDiscountLek));
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -147,7 +211,67 @@ export default function CartScreen() {
           />
 
           <View style={styles.summary}>
+            {/* Coupon block */}
+            {appliedCoupon ? (
+              <View style={styles.couponApplied} testID="cart-coupon-applied">
+                <View style={styles.couponAppliedIcon}>
+                  <Ionicons name="pricetag" size={14} color={colors.success} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.couponAppliedCode}>{appliedCoupon.code}</Text>
+                  <Text style={styles.couponAppliedMsg}>{appliedCoupon.message || `You save ${Math.round(appliedCoupon.discount_lek)} L`}</Text>
+                </View>
+                <Pressable onPress={removeCoupon} hitSlop={10} testID="cart-coupon-remove">
+                  <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.couponRow}>
+                <View style={styles.couponIconBox}>
+                  <Ionicons name="pricetag-outline" size={14} color={colors.primary} />
+                </View>
+                <TextInput
+                  value={couponInput}
+                  onChangeText={(v) => {
+                    setCouponInput(v.toUpperCase());
+                    if (couponError) setCouponError(null);
+                  }}
+                  placeholder="Have a coupon code?"
+                  placeholderTextColor={colors.textDisabled}
+                  autoCapitalize="characters"
+                  style={styles.couponInput}
+                  onSubmitEditing={applyCoupon}
+                  returnKeyType="done"
+                  testID="cart-coupon-input"
+                />
+                <Pressable
+                  onPress={applyCoupon}
+                  style={[styles.couponApplyBtn, (!couponInput.trim() || couponBusy) && { opacity: 0.5 }]}
+                  disabled={!couponInput.trim() || couponBusy}
+                  testID="cart-coupon-apply"
+                >
+                  {couponBusy ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.couponApplyText}>Apply</Text>
+                  )}
+                </Pressable>
+              </View>
+            )}
+            {couponError ? (
+              <Text style={styles.couponErrorText} testID="cart-coupon-error">
+                {couponError}
+              </Text>
+            ) : null}
+
             <Row label={t("subtotal")} value={formatPrice(subLek, subEur, currency)} />
+            {couponDiscountLek > 0 && (
+              <Row
+                label={`Coupon (${appliedCoupon?.code})`}
+                value={`- ${formatPrice(couponDiscountLek, couponDiscountEur, currency)}`}
+                valueColor={colors.success}
+              />
+            )}
             <Row
               label={t("delivery_fee")}
               value={isFree ? t("free") : formatPrice(feeLek, feeEur, currency)}
@@ -250,6 +374,65 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: 4 },
+  // Coupon block
+  couponRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: "dashed",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginBottom: 4,
+  },
+  couponIconBox: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  couponInput: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.textMain,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    paddingVertical: 6,
+  },
+  couponApplyBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.md,
+    minWidth: 68,
+    alignItems: "center",
+  },
+  couponApplyText: { color: "#fff", fontWeight: "700", fontSize: 12 },
+  couponApplied: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#E7F7EC",
+    borderWidth: 1,
+    borderColor: colors.success,
+    borderRadius: radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 4,
+  },
+  couponAppliedIcon: {
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: "#fff",
+    alignItems: "center", justifyContent: "center",
+  },
+  couponAppliedCode: { fontSize: 13, fontWeight: "800", color: colors.textMain, letterSpacing: 0.5 },
+  couponAppliedMsg: { fontSize: 11, color: colors.textMuted },
+  couponErrorText: { fontSize: 11, color: colors.error, marginTop: -2, marginBottom: 4 },
   checkoutBtn: {
     backgroundColor: colors.primary,
     borderRadius: radius.lg,

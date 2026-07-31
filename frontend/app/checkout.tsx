@@ -27,7 +27,7 @@ type EntryMode = "manual" | "map";
 
 export default function Checkout() {
   const router = useRouter();
-  const { t, currency, user, setCartCount, refreshUser, selectedAddress } = useApp();
+  const { t, currency, user, setCartCount, refreshUser, selectedAddress, appliedCoupon, setAppliedCoupon } = useApp();
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -108,11 +108,14 @@ export default function Checkout() {
 
   const subLek = cart?.subtotal_lek || 0;
   const subEur = cart?.subtotal_eur || 0;
-  const isFree = subLek >= FREE_MIN_LEK;
+  const couponDiscLek = appliedCoupon?.discount_lek || 0;
+  const couponDiscEur = couponDiscLek / LEK_PER_EUR;
+  const netSubLek = Math.max(0, subLek - couponDiscLek);
+  const isFree = netSubLek >= FREE_MIN_LEK;
   const feeLek = isFree ? 0 : DELIVERY_FEE_LEK;
   const feeEur = isFree ? 0 : DELIVERY_FEE_LEK / LEK_PER_EUR;
-  const totalLek = subLek + feeLek;
-  const totalEur = subEur + feeEur;
+  const totalLek = netSubLek + feeLek;
+  const totalEur = Math.max(0, subEur - couponDiscEur) + feeEur;
 
   // Picker items
   const countryItems: PickerItem[] = useMemo(
@@ -176,7 +179,12 @@ export default function Checkout() {
     try {
       const order = await api.post<{ id: string; eta_minutes: number }>(
         "/orders",
-        { address: addressPayload, note, currency },
+        {
+          address: addressPayload,
+          note,
+          currency,
+          ...(appliedCoupon?.code ? { coupon_code: appliedCoupon.code } : {}),
+        },
         true,
       );
       // Persist to profile (always save if it's the first address)
@@ -187,6 +195,7 @@ export default function Checkout() {
         } catch {}
       }
       setCartCount(0);
+      setAppliedCoupon(null);
       router.replace(`/order-success?id=${order.id}&eta=${order.eta_minutes}`);
     } catch (e: any) {
       setError(e?.message || t("error_generic"));
@@ -420,6 +429,13 @@ export default function Checkout() {
         <View style={styles.summary}>
           <Text style={styles.section}>Order summary</Text>
           <Row label={t("subtotal")} value={formatPrice(subLek, subEur, currency)} />
+          {couponDiscLek > 0 && (
+            <Row
+              label={`Coupon (${appliedCoupon?.code})`}
+              value={`- ${formatPrice(couponDiscLek, couponDiscEur, currency)}`}
+              valueColor={colors.success}
+            />
+          )}
           <Row
             label={t("delivery_fee")}
             value={isFree ? t("free") : formatPrice(feeLek, feeEur, currency)}
