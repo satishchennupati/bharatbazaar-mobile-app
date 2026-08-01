@@ -2,12 +2,12 @@
  * Profile: user info, language switcher, currency switcher, logout.
  */
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-import { api } from "@/src/lib/api";
+import { api, resolveImageUrl } from "@/src/lib/api";
 import { CURRENCIES, LANGUAGES, type Currency, type Lang } from "@/src/i18n";
 import { useApp } from "@/src/store/app-context";
 import { colors, radius, spacing } from "@/src/theme";
@@ -49,16 +49,28 @@ export default function Profile() {
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
         <View style={styles.header}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {(user?.full_name || user?.username || "?").charAt(0).toUpperCase()}
-            </Text>
+            {user?.avatar_url ? (
+              <ProfileAvatarImage uri={user.avatar_url} />
+            ) : (
+              <Text style={styles.avatarText}>
+                {(user?.full_name || user?.username || "?").charAt(0).toUpperCase()}
+              </Text>
+            )}
           </View>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.name} testID="profile-name">
               {user?.full_name || user?.username}
             </Text>
             <Text style={styles.sub}>{user?.phone || user?.email || ""}</Text>
           </View>
+          <Pressable
+            onPress={() => router.push("/(auth)/complete-profile")}
+            style={styles.editBtn}
+            testID="profile-edit-btn"
+          >
+            <Ionicons name="create-outline" size={16} color={colors.primary} />
+            <Text style={styles.editText}>Edit</Text>
+          </Pressable>
         </View>
 
         <Section title="Preferences">
@@ -83,7 +95,7 @@ export default function Profile() {
             icon="location"
             label={t("saved_addresses")}
             value={`${user?.addresses?.length || 0}`}
-            onPress={() => {}}
+            onPress={() => router.push("/manage-addresses")}
             testID="profile-addr-row"
           />
           <Row icon="help-circle" label="Help & support" value="" onPress={() => {}} testID="profile-help-row" />
@@ -126,6 +138,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <View style={styles.sectionCard}>{children}</View>
     </View>
   );
+}
+
+function ProfileAvatarImage({ uri }: { uri: string }) {
+  return <Image source={{ uri: resolveImageUrl(uri) }} style={{ width: 60, height: 60, borderRadius: 30 }} />;
 }
 
 function Row({
@@ -204,14 +220,26 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
   avatarText: { color: "#fff", fontSize: 26, fontWeight: "700" },
+  editBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  editText: { fontSize: 12, fontWeight: "700", color: colors.primary },
   name: { fontSize: 20, fontWeight: "700", color: colors.textMain },
   sub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
   sectionTitle: {

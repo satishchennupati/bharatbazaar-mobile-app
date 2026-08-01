@@ -77,6 +77,21 @@ class SetPasswordIn(BaseModel):
     currency: Literal["LEK", "EUR"] = "LEK"
 
 
+class ResetPasswordIn(BaseModel):
+    reset_token: str
+    password: str = Field(..., min_length=6)
+
+
+class UpdateProfileIn(BaseModel):
+    """Full profile update — used by the 'Complete profile' screen and later edits."""
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    language: Optional[str] = None
+    currency: Optional[Literal["LEK", "EUR"]] = None
+    avatar_data_url: Optional[str] = None  # data:image/...;base64,..
+    avatar_url: Optional[str] = None       # allow clearing/setting directly
+
+
 class AuthOut(BaseModel):
     token: str
     user: dict

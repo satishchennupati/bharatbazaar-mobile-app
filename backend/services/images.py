@@ -9,7 +9,7 @@ from typing import Optional
 
 import httpx
 
-from config import PRODUCT_IMG_DIR, OFFER_IMG_DIR
+from config import PRODUCT_IMG_DIR, OFFER_IMG_DIR, STATIC_DIR
 from db import db
 
 logger = logging.getLogger("bharat_bazaar")
@@ -28,7 +28,13 @@ def save_data_url_as_image(data_url: str, product_id: str, subdir: str = "produc
         content = base64.b64decode(m.group(2))
     except Exception:
         return None
-    target_dir = OFFER_IMG_DIR if subdir == "offers" else PRODUCT_IMG_DIR
+    if subdir == "offers":
+        target_dir = OFFER_IMG_DIR
+    elif subdir == "products":
+        target_dir = PRODUCT_IMG_DIR
+    else:
+        target_dir = STATIC_DIR / subdir
+        target_dir.mkdir(parents=True, exist_ok=True)
     fname = f"{product_id}.{ext}"
     fpath = target_dir / fname
     with open(fpath, "wb") as f:

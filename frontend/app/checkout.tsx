@@ -46,6 +46,10 @@ export default function Checkout() {
   const [whatsapp, setWhatsapp] = useState("");
   const [note, setNote] = useState("");
   const [postal, setPostal] = useState("");
+  const [saveAddress, setSaveAddress] = useState(true);
+  const [selectedSavedId, setSelectedSavedId] = useState<string | null>(null);
+
+  const savedAddresses = (user?.addresses || []) as any[];
 
   // Picker modals
   const [openPicker, setOpenPicker] = useState<null | "country" | "state" | "city">(null);
@@ -139,6 +143,22 @@ export default function Checkout() {
     return bashkiaFor(state).map((b) => ({ key: b, label: b }));
   }, [isAlbania, state]);
 
+  const applySavedAddress = (a: any) => {
+    setSelectedSavedId(a.id || null);
+    setEntryMode(a.entry_mode === "map" ? "map" : "manual");
+    const c = findCountryByName(a.country || "Albania");
+    setCountryCode(c?.code || a.country_code || "AL");
+    setState(a.state || "");
+    setCity(a.city || "");
+    setArea(a.area || "");
+    setLandmark(a.landmark || "");
+    setLine1(a.line1 || "");
+    setPostal(a.postal_code || "");
+    setPhone(a.phone || user?.phone || "");
+    setWhatsapp(a.whatsapp || "");
+    setSaveAddress(false); // already saved
+  };
+
   const placeOrder = async () => {
     setError(null);
     // Validation
@@ -187,8 +207,11 @@ export default function Checkout() {
         },
         true,
       );
-      // Persist to profile (always save if it's the first address)
-      if (!user?.addresses || user.addresses.length === 0) {
+      // Persist to profile:
+      //  - Always save the very first address so users have at least one on file.
+              //  - Otherwise, save only when the user explicitly ticks the checkbox.
+      const shouldSave = saveAddress && !selectedSavedId;
+      if (shouldSave || !user?.addresses || user.addresses.length === 0) {
         try {
           const addr = await api.post<any>("/me/addresses", addressPayload);
           if (user) await refreshUser({ ...user, addresses: [...(user.addresses || []), addr] });
@@ -227,6 +250,43 @@ export default function Checkout() {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.section}>{t("delivery_address")}</Text>
+
+        {savedAddresses.length > 0 && (
+          <View style={styles.savedRow} testID="checkout-saved-addresses">
+            <View style={styles.savedHead}>
+              <Ionicons name="bookmark" size={14} color={colors.primary} />
+              <Text style={styles.savedTitle}>Saved addresses</Text>
+              <View style={{ flex: 1 }} />
+              <Pressable onPress={() => router.push("/manage-addresses")} testID="checkout-manage-addresses">
+                <Text style={styles.manageLink}>Manage</Text>
+              </Pressable>
+            </View>
+            <View style={styles.savedChips}>
+              {savedAddresses.map((a: any) => {
+                const active = a.id && selectedSavedId === a.id;
+                const summary = [a.line1, a.area, a.city].filter(Boolean).join(", ") || a.formatted_address || a.city || "Address";
+                return (
+                  <Pressable
+                    key={a.id || Math.random()}
+                    onPress={() => applySavedAddress(a)}
+                    style={[styles.savedChip, active && styles.savedChipActive]}
+                    testID={`checkout-saved-${a.id}`}
+                  >
+                    <Ionicons name={active ? "checkmark-circle" : "location-outline"} size={14} color={active ? "#fff" : colors.primary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.savedChipLabel, active && { color: "#fff" }]} numberOfLines={1}>
+                        {a.label || "Address"}
+                      </Text>
+                      <Text style={[styles.savedChipSummary, active && { color: "#fff", opacity: 0.9 }]} numberOfLines={1}>
+                        {summary}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {/* Segmented control: Manual / Map */}
         <View style={styles.segment}>
@@ -413,6 +473,22 @@ export default function Checkout() {
         <Text style={styles.helper}>
           <Ionicons name="information-circle" size={12} color={colors.textMuted} /> {t("save_address_note")}
         </Text>
+
+        {!selectedSavedId && (
+          <Pressable
+            onPress={() => setSaveAddress((v) => !v)}
+            style={styles.saveAddrRow}
+            testID="checkout-save-address-toggle"
+          >
+            <View style={[styles.checkbox, saveAddress && styles.checkboxActive]}>
+              {saveAddress ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.saveAddrLabel}>Save this address for faster checkout</Text>
+              <Text style={styles.saveAddrSub}>You&apos;ll be able to select it next time</Text>
+            </View>
+          </Pressable>
+        )}
 
         <Text style={[styles.section, { marginTop: spacing.lg }]}>{t("payment_method")}</Text>
         <View style={styles.payOpt} testID="co-pay-cod">
@@ -704,6 +780,60 @@ const styles = StyleSheet.create({
   mapCoord: { fontSize: 13, fontWeight: "700", color: colors.textMain },
   mapCoordSub: { fontSize: 11, color: colors.textMuted },
   helper: { fontSize: 11, color: colors.textMuted, marginTop: 4, marginBottom: 4 },
+  saveAddrRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginTop: 4,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+  },
+  checkboxActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  saveAddrLabel: { fontSize: 13, fontWeight: "700", color: colors.textMain },
+  saveAddrSub: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  savedRow: {
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    gap: 8,
+  },
+  savedHead: { flexDirection: "row", alignItems: "center", gap: 6 },
+  savedTitle: { fontSize: 12, fontWeight: "700", color: colors.textMuted, letterSpacing: 0.5, textTransform: "uppercase" },
+  manageLink: { fontSize: 12, color: colors.primary, fontWeight: "700" },
+  savedChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  savedChip: {
+    minWidth: "48%",
+    flexBasis: "48%",
+    flexGrow: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primaryLight,
+  },
+  savedChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  savedChipLabel: { fontSize: 12, fontWeight: "700", color: colors.textMain },
+  savedChipSummary: { fontSize: 11, color: colors.textMuted },
   payOpt: {
     flexDirection: "row",
     alignItems: "center",

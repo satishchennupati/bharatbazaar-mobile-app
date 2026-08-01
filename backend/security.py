@@ -42,6 +42,16 @@ def make_signup_token(phone: str, minutes: int = 15) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
 
 
+def make_reset_token(phone: str, minutes: int = 15) -> str:
+    payload = {
+        "phone": phone,
+        "typ": "reset",
+        "iat": datetime.now(timezone.utc),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=minutes),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+
+
 def decode_signup_token(token: str) -> dict:
     try:
         data = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
@@ -51,6 +61,18 @@ def decode_signup_token(token: str) -> dict:
         raise HTTPException(status_code=400, detail="Invalid signup token")
     if data.get("typ") != "signup":
         raise HTTPException(status_code=400, detail="Invalid signup token")
+    return data
+
+
+def decode_reset_token(token: str) -> dict:
+    try:
+        data = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=400, detail="Reset session expired, please request a new OTP")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=400, detail="Invalid reset token")
+    if data.get("typ") != "reset":
+        raise HTTPException(status_code=400, detail="Invalid reset token")
     return data
 
 

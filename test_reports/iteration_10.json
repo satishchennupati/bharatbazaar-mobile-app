@@ -1,0 +1,56 @@
+{
+  "summary": "Forgot-password (OTP-driven), Complete-profile, and Address CRUD (incl. new PATCH) tested end-to-end. Backend: 14/14 pytest PASSED on live preview URL. Forgot-password: (a) POST /auth/forgot-password/send-otp returns silent OK for unknown phone (+355000000001) with NO otp_sessions row created — enumeration-safe verified in DB; (b) invalid phone format (no '+') returns 400; (c) verify-otp with no session returns 400; (d) FULL flow on quick-user (+355695808480): send-otp → read OTP from db.otp_sessions.purpose='reset' → wrong-code returns 400 with attempts increment → correct code returns reset_token (valid JWT, 3 segments) → /reset changes password_hash + returns fresh {token,user}; old password fails 401, new password logs in 200; password was restored back to '123456' via a second reset cycle at end of test so subsequent runs unaffected; (e) malformed reset_token → 400. Complete-profile: POST /me/profile with {} returns 400; without Bearer returns 401; full payload (name+email+language+currency+avatar_data_url tiny PNG) persists all fields, avatar saved under /api/static/avatars/{user_id}.png, GET returns image with content-type image/*; GET /me confirms persistence; then reset to sane values. Address CRUD: POST /me/addresses creates addr w/ id; GET /me shows it; PATCH /me/addresses/{id} updates label+line1+city IN PLACE preserving same id; GET /me reflects change; PATCH unknown id returns 404; DELETE /me/addresses/{id} → 200 and removes from /me. Regression: /api/health, admin login (+355690000001/admin123), /categories, /products, /offers/banners, /geo/autocomplete all green. Frontend UI smoke (mobile 390x844, live preview): Login → password step shows 'Forgot password?' link (testID auth-forgot-password) ✓; tapping it fires send-otp + routes to forgot-verify step with 'Reset password' heading, OTP input (auth-forgot-otp-input) and Verify button (auth-forgot-verify-btn) visible ✓; Profile screen shows avatar circle (initial fallback), Edit pill button (profile-edit-btn) and 'Saved addresses' row with count (profile-addr-row) ✓; tapping Saved addresses navigates to /manage-addresses with 'Saved addresses' title, one DEFAULT-badged card, phone meta row, and Delete button ✓. Deprecated packages detected: none new. Only warnings: shadow* style props deprecation (pre-existing).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "profile-edit-btn → /(auth)/complete-profile",
+        "issue": "Tapping the 'Edit' pill on Profile navigates to URL '/' on web preview rather than surfacing the Complete-profile screen (complete-profile-title testID not visible after push). Likely the (auth) group _layout has an authenticated-user guard that redirects to /(tabs) since the user already has a session. Route works fine for brand-new users right after signup, but the 'Edit later from Profile' entry-point is currently broken on an authenticated session.",
+        "testID": "profile-edit-btn",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "shadow* style props (project-wide, pre-existing)",
+        "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Unchanged from previous iterations."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_forgot_profile_addr_iter10.py",
+    "/app/test_reports/pytest/iter10_results.xml"
+  ],
+  "action_items": [
+    "Fix Profile → Edit navigation: /(auth)/complete-profile is inside the auth group which likely redirects authenticated users. Either (a) move complete-profile out of the (auth) group into a standalone route (e.g. /complete-profile or /(app)/complete-profile), or (b) make the (auth) group _layout skip its authed-redirect when the target is complete-profile. Verify with an already-logged-in quick-user session on the web preview.",
+    "Consider a small hardening: /auth/forgot-password/reset currently allows a reset_token to be reused until it expires (JWT is stateless). If replay-protection is desired, store used JTIs or bump password_updated_at check server-side."
+  ],
+  "critical_code_review_comments": [
+    "routes/auth.py:197-225 send_reset_otp correctly returns identical shape for unknown phone (enumeration-safe) and only writes to otp_sessions when user exists — verified via direct DB assert.",
+    "routes/auth.py:228-248 verify_reset_otp keys OTP session by (phone, purpose='reset') so a concurrent register OTP wouldn't interfere; 5-attempt lockout + expiry both enforced.",
+    "routes/auth.py:251-271 reset_password decodes typ=reset JWT and updates password_hash + password_updated_at. Note the redundant local `user['password_hash']=...` then `user.pop('password_hash')` on line 267-268 is harmless but noisy; could be removed.",
+    "routes/me.py:31-53 complete_profile properly returns 400 on empty payload, uses save_data_url_as_image with subdir='avatars', and returns fresh user with _id/password_hash stripped. Good.",
+    "routes/me.py:64-75 update_address uses positional operator addresses.$ correctly and returns 404 when address id not found (matched_count check). Good.",
+    "services/images.py:19-42 save_data_url_as_image now supports arbitrary subdirs — creates STATIC_DIR/subdir on-demand for 'avatars' — clean generalisation.",
+    "security.py:45-52 + 67-76 make_reset_token / decode_reset_token symmetric with signup, correctly stamps typ=reset. decode_signup_token would REJECT a reset token and vice-versa (typ check on line 62 & 74). Good.",
+    "checkout.tsx:214 order-place flow still auto-saves the very first address for any user with empty addresses list — preserving prior behavior even when the new 'Save this address' checkbox is unchecked. Good.",
+    "manage-addresses.tsx uses useFocusEffect to refresh /me on every focus — ensures newly-added addresses appear after checkout without a hard reload. Good."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_forgot_profile_addr_iter10.py (new — 14 tests, all pass)"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 pytest)",
+    "frontend": "~90% (login forgot-password flow, profile screen, manage-addresses all working; profile-edit → complete-profile navigation broken on authenticated session — reported)"
+  },
+  "seed_data_creation": "Quick-user password was temporarily reset to 'TempPw#42' and then restored back to '123456' via a second forgot-password cycle at the end of the reset test. Profile fields were flipped to TEST_ values then reset. Any TEST_ addresses created were deleted in-test.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend suite: `cd /app && python -m pytest backend/tests/test_forgot_profile_addr_iter10.py -v`. Reset OTP is stored in db.otp_sessions with purpose='reset'; read the 'code' field directly for tests (Twilio really sends but we don't need the SMS). Quick-user password should always be '123456' at rest — backend seed force-resets it on startup and the reset test cleans up. For UI, seed localStorage with mbc_onboarded='true' + mbc_lang=JSON.stringify('en') + mbc_currency=JSON.stringify('LEK') before navigating to /(auth)/login to bypass onboarding. Frontend uses EXPO_PUBLIC_BACKEND_URL env key (not EXPO_BACKEND_URL).",
+  "rca_of_issue": "Profile → Edit routing bug RCA: user is already authenticated when tapping Edit, so router.push('/(auth)/complete-profile') hits the (auth) group whose _layout likely calls router.replace('/(tabs)') for authed users (this is the standard 'redirect logged-in users away from login' guard). Because complete-profile lives inside that group, the guard incorrectly kicks it out. Fix: hoist complete-profile out of the auth group OR whitelist the pathname in the (auth) guard."
+}

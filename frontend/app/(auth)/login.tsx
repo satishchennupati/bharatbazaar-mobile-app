@@ -31,7 +31,15 @@ const COUNTRIES: Country[] = [
   { code: "AL", dial: "+355", name: "Albania", flag: "🇦🇱" },
 ];
 
-type Step = "phone" | "password" | "get-otp" | "otp" | "create-password";
+type Step =
+  | "phone"
+  | "password"
+  | "get-otp"
+  | "otp"
+  | "create-password"
+  | "forgot-otp"
+  | "forgot-verify"
+  | "forgot-reset";
 
 export default function Login() {
   const router = useRouter();
@@ -42,9 +50,9 @@ export default function Login() {
   const [localPhone, setLocalPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
-  const [fullName, setFullName] = useState("");
   const [code, setCode] = useState("");
   const [signupToken, setSignupToken] = useState<string | null>(null);
+  const [resetToken, setResetToken] = useState<string | null>(null);
   const [debugCode, setDebugCode] = useState<string | null>(null);
 
   const [step, setStep] = useState<Step>("phone");
@@ -160,10 +168,78 @@ export default function Login() {
         {
           signup_token: signupToken,
           password,
-          full_name: fullName.trim(),
+          full_name: "",
           language: lang,
           currency,
         },
+      );
+      await setSession(res.token, res.user);
+      // New account → go to the "Complete profile" screen next.
+      router.replace("/(auth)/complete-profile");
+    } catch (e: any) {
+      setError(e?.message || t("error_generic"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ------------- Forgot password -------------
+  const onSendResetOtp = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await api.post<{ ok: boolean; debug_code?: string }>(
+        "/auth/forgot-password/send-otp",
+        { phone: fullPhone },
+      );
+      setDebugCode(res.debug_code || null);
+      setCode("");
+      setStep("forgot-verify");
+    } catch (e: any) {
+      setError(e?.message || t("error_generic"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onVerifyResetOtp = async () => {
+    setError(null);
+    if (code.trim().length < 4) {
+      setError(t("enter_otp"));
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await api.post<{ reset_token: string }>(
+        "/auth/forgot-password/verify-otp",
+        { phone: fullPhone, code: code.trim() },
+      );
+      setResetToken(res.reset_token);
+      setPassword("");
+      setStep("forgot-reset");
+    } catch (e: any) {
+      setError(e?.message || t("error_generic"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onResetPassword = async () => {
+    setError(null);
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    if (!resetToken) {
+      setError("Session expired, please verify OTP again");
+      setStep("forgot-verify");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await api.post<{ token: string; user: any }>(
+        "/auth/forgot-password/reset",
+        { reset_token: resetToken, password },
       );
       await setSession(res.token, res.user);
       router.replace("/(tabs)");
@@ -181,6 +257,9 @@ export default function Login() {
     else if (step === "get-otp") setStep("phone");
     else if (step === "otp") setStep("get-otp");
     else if (step === "create-password") setStep("otp");
+    else if (step === "forgot-otp") setStep("password");
+    else if (step === "forgot-verify") setStep("password");
+    else if (step === "forgot-reset") setStep("forgot-verify");
   };
 
   // ------------- UI -------------
@@ -278,6 +357,17 @@ export default function Login() {
             >
               <Text style={styles.ctaText}>{loading ? t("loading") : t("login")}</Text>
             </Pressable>
+            <Pressable
+              onPress={() => {
+                setError(null);
+                setCode("");
+                onSendResetOtp();
+              }}
+              style={styles.resend}
+              testID="auth-forgot-password"
+            >
+              <Text style={styles.resendText}>Forgot password?</Text>
+            </Pressable>
           </>
         )}
 
@@ -361,15 +451,6 @@ export default function Login() {
           <>
             <Text style={styles.title}>Create your account</Text>
             <Text style={styles.sub}>Almost done — pick a password to secure your account.</Text>
-            <Text style={styles.label}>{t("full_name")}</Text>
-            <TextInput
-              value={fullName}
-              onChangeText={setFullName}
-              placeholder="Your name"
-              placeholderTextColor={colors.textDisabled}
-              style={styles.input}
-              testID="auth-newuser-name"
-            />
             <Text style={styles.label}>Create password</Text>
             <View style={styles.pwRow}>
               <TextInput
@@ -380,6 +461,7 @@ export default function Login() {
                 placeholderTextColor={colors.textDisabled}
                 style={[styles.input, { flex: 1 }]}
                 testID="auth-newuser-password"
+                autoFocus
               />
               <Pressable onPress={() => setShowPw((v) => !v)} style={styles.eye} testID="auth-newuser-show-pw">
                 <Ionicons name={showPw ? "eye-off" : "eye"} size={20} color={colors.textMuted} />
@@ -392,7 +474,79 @@ export default function Login() {
               style={[styles.cta, loading && { opacity: 0.6 }]}
               testID="auth-create-password-btn"
             >
-              <Text style={styles.ctaText}>{loading ? t("loading") : "Create account"}</Text>
+              <Text style={styles.ctaText}>{loading ? t("loading") : "Continue"}</Text>
+              {!loading && <Ionicons name="arrow-forward" size={18} color="#fff" />}
+            </Pressable>
+          </>
+        )}
+
+        {step === "forgot-verify" && (
+          <>
+            <Text style={styles.title}>Reset password</Text>
+            <Text style={styles.sub}>
+              We&apos;ve sent a 6-digit code to{" "}
+              <Text style={{ color: colors.textMain, fontWeight: "600" }}>{fullPhone}</Text>. Enter it below to continue.
+            </Text>
+            <TextInput
+              value={code}
+              onChangeText={setCode}
+              keyboardType="number-pad"
+              maxLength={8}
+              autoFocus
+              style={[styles.input, styles.otpInput]}
+              placeholder="123456"
+              placeholderTextColor={colors.textDisabled}
+              testID="auth-forgot-otp-input"
+            />
+            {debugCode && (
+              <View style={styles.demoBox} testID="auth-forgot-debug-code">
+                <Text style={styles.demoTitle}>Dev OTP (mock)</Text>
+                <Text style={styles.demoText}>{debugCode}</Text>
+              </View>
+            )}
+            {error && <Text style={styles.error}>{error}</Text>}
+            <Pressable
+              onPress={onVerifyResetOtp}
+              disabled={loading}
+              style={[styles.cta, loading && { opacity: 0.6 }]}
+              testID="auth-forgot-verify-btn"
+            >
+              <Text style={styles.ctaText}>{loading ? t("loading") : "Verify"}</Text>
+            </Pressable>
+            <Pressable onPress={onSendResetOtp} disabled={loading} style={styles.resend} testID="auth-forgot-resend">
+              <Text style={styles.resendText}>{t("resend_otp")}</Text>
+            </Pressable>
+          </>
+        )}
+
+        {step === "forgot-reset" && (
+          <>
+            <Text style={styles.title}>New password</Text>
+            <Text style={styles.sub}>Choose a strong password to secure your account.</Text>
+            <Text style={styles.label}>New password</Text>
+            <View style={styles.pwRow}>
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPw}
+                placeholder="At least 6 characters"
+                placeholderTextColor={colors.textDisabled}
+                style={[styles.input, { flex: 1 }]}
+                autoFocus
+                testID="auth-forgot-newpw-input"
+              />
+              <Pressable onPress={() => setShowPw((v) => !v)} style={styles.eye}>
+                <Ionicons name={showPw ? "eye-off" : "eye"} size={20} color={colors.textMuted} />
+              </Pressable>
+            </View>
+            {error && <Text style={styles.error}>{error}</Text>}
+            <Pressable
+              onPress={onResetPassword}
+              disabled={loading}
+              style={[styles.cta, loading && { opacity: 0.6 }]}
+              testID="auth-forgot-reset-btn"
+            >
+              <Text style={styles.ctaText}>{loading ? t("loading") : "Reset & sign in"}</Text>
             </Pressable>
           </>
         )}
