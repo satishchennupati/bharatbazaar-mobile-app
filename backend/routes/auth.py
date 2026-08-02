@@ -4,20 +4,10 @@ from __future__ import annotations
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from twilio.base.exceptions import TwilioRestException
-from twilio.rest import Client as TwilioClient
 
-from config import (
-    OTP_EXPIRY_MINUTES,
-    OTP_LENGTH,
-    TWILIO_FROM,
-    TWILIO_MSID,
-    TWILIO_SID,
-    TWILIO_TOKEN,
-)
+from config import OTP_EXPIRY_MINUTES, OTP_LENGTH
 from db import db
 from models import AuthOut, CheckPhoneIn, LoginIn, ResetPasswordIn, SendOtpIn, SetPasswordIn, VerifyOtpIn
 from security import (
@@ -29,17 +19,10 @@ from security import (
     make_signup_token,
     make_token,
 )
+from services.notifications import send_sms
 
 router = APIRouter(prefix="/auth")
 logger = logging.getLogger("bharat_bazaar")
-
-twilio_client: Optional[TwilioClient] = None
-if TWILIO_SID and TWILIO_TOKEN:
-    try:
-        twilio_client = TwilioClient(TWILIO_SID, TWILIO_TOKEN)
-    except Exception as exc:  # pragma: no cover
-        logger.warning("Twilio init failed: %s", exc)
-        twilio_client = None
 
 
 def _gen_otp() -> str:
@@ -47,23 +30,12 @@ def _gen_otp() -> str:
 
 
 async def _send_sms_otp(phone: str, code: str) -> dict:
-    if not twilio_client:
-        logger.warning("Twilio not configured; OTP not sent for %s (code=%s)", phone, code)
-        return {"sent": False, "channel": "mock"}
     body = f"Your Bharat Bazaar verification code is {code}. It expires in {OTP_EXPIRY_MINUTES} minutes."
-    kwargs = {"body": body, "to": phone}
-    if TWILIO_MSID:
-        kwargs["messaging_service_sid"] = TWILIO_MSID
-    elif TWILIO_FROM:
-        kwargs["from_"] = TWILIO_FROM
-    else:
-        raise HTTPException(status_code=500, detail="Twilio sender not configured")
-    try:
-        msg = twilio_client.messages.create(**kwargs)
-        return {"sent": True, "channel": "sms", "sid": msg.sid}
-    except TwilioRestException as exc:
-        logger.warning("Twilio send error (falling back to mock): %s", exc)
-        return {"sent": False, "channel": "mock", "twilio_error": getattr(exc, "msg", str(exc))}
+    result = send_sms(phone, body)
+    if result.get("sent"):
+        return result
+    # Preserve the shape the auth routes expect (`channel` and optional error info).
+    return {"sent": False, "channel": result.get("channel", "mock"), "twilio_error": result.get("error")}
 
 
 @router.post("/check-phone")

@@ -31,6 +31,10 @@ ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "")
 GOOGLE_DRIVE_API_KEY = os.environ.get("GOOGLE_DRIVE_API_KEY", "")
 GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
 
+# ---- Store owner (receives order-notification SMS) ----
+STORE_OWNER_PHONE = os.environ.get("STORE_OWNER_PHONE", "+355695808480")
+STORE_NAME = os.environ.get("STORE_NAME", "Bharat Bazaar")
+
 # ---- JWT ----
 JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALGO = os.environ.get("JWT_ALGORITHM", "HS256")

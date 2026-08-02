@@ -1,6 +1,7 @@
 """Customer orders: place COD order, list, detail."""
 from __future__ import annotations
 
+import logging
 import random
 import secrets
 from datetime import datetime, timezone
@@ -12,8 +13,10 @@ from db import db
 from models import PlaceOrderIn
 from security import get_current_user
 from services.cart import enrich_cart, get_or_create_cart
+from services.notifications import notify_order_placed
 from services.offers import apply_category_discounts_to_items, validate_coupon
 
+logger = logging.getLogger("bharat_bazaar")
 router = APIRouter(prefix="/orders")
 
 
@@ -84,6 +87,25 @@ async def place_order(payload: PlaceOrderIn, user: dict = Depends(get_current_us
             {"id": coupon_meta["id"]},
             {"$inc": {"usage_count": 1}},
         )
+
+    # Fire order-confirmation SMS: one to the customer, one to the store owner.
+    # Prefer the customer's registered phone; fall back to the address phone if
+    # the account is missing one for any reason. Never fail the order on SMS
+    # errors — Twilio outages are common and this is a courtesy notification.
+    customer_phone = user.get("phone") or (payload.address.phone or "")
+    customer_name = (user.get("full_name") or user.get("username") or "").strip()
+    try:
+        sms_results = notify_order_placed(order, customer_phone=customer_phone, customer_name=customer_name)
+        await db.orders.update_one(
+            {"id": order_id},
+            {"$set": {
+                "notification_sent_at": datetime.now(timezone.utc).isoformat(),
+                "notification_customer": sms_results.get("customer"),
+                "notification_owner": sms_results.get("owner"),
+            }},
+        )
+    except Exception as exc:  # defensive
+        logger.warning("Order %s SMS notification error: %s", order_id, exc)
 
     order.pop("_id", None)
     return order
