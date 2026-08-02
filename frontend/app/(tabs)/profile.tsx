@@ -64,7 +64,7 @@ export default function Profile() {
             <Text style={styles.sub}>{user?.phone || user?.email || ""}</Text>
           </View>
           <Pressable
-            onPress={() => router.push("/(auth)/complete-profile")}
+            onPress={() => router.push("/complete-profile")}
             style={styles.editBtn}
             testID="profile-edit-btn"
           >

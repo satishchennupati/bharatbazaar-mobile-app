@@ -175,7 +175,7 @@ export default function Login() {
       );
       await setSession(res.token, res.user);
       // New account → go to the "Complete profile" screen next.
-      router.replace("/(auth)/complete-profile");
+      router.replace("/complete-profile");
     } catch (e: any) {
       setError(e?.message || t("error_generic"));
     } finally {

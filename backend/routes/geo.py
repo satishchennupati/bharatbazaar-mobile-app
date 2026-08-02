@@ -177,12 +177,30 @@ async def geo_map_picker_page(
     }}
     .center-pin svg {{ display: block; }}
     .hint {{
-      position: fixed; bottom: 12px; left: 12px; right: 12px;
+      position: fixed; bottom: 12px; left: 12px; right: 68px;
       background: rgba(255,255,255,0.95); border-radius: 12px;
       padding: 10px 14px; font-size: 13px; color: #333;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15); text-align: center;
       z-index: 1000; font-weight: 600;
     }}
+    .locate-btn {{
+      position: fixed; bottom: 12px; right: 12px;
+      width: 48px; height: 48px; border-radius: 24px;
+      background: #fff; border: none;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      z-index: 1001; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }}
+    .locate-btn:active {{ background: #f5f5f5; }}
+    .locate-btn.loading {{ opacity: 0.7; pointer-events: none; }}
+    .locate-btn .spinner {{
+      width: 20px; height: 20px; border-radius: 50%;
+      border: 2px solid #FF5722; border-top-color: transparent;
+      animation: spin 0.8s linear infinite;
+    }}
+    @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
+    .locate-btn.granted svg circle {{ fill: #FF5722; }}
     .fatal {{
       position: fixed; inset: 0; display: flex; align-items: center;
       justify-content: center; padding: 24px; text-align: center;
@@ -199,12 +217,92 @@ async def geo_map_picker_page(
       <circle cx='20' cy='20' r='7' fill='#fff'/>
     </svg>
   </div>
-  <div class='hint'>Drag the map to place the pin</div>
+  <div class='hint' id='hint'>Drag the map to place the pin</div>
+  <button class='locate-btn' id='locateBtn' aria-label='Use my location' title='Use my location'>
+    <svg width='24' height='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>
+      <circle cx='12' cy='12' r='3' fill='#666'/>
+      <path d='M12 2v3M12 19v3M2 12h3M19 12h3M12 6a6 6 0 100 12 6 6 0 000-12z'
+            stroke='#666' stroke-width='2' fill='none' stroke-linecap='round'/>
+    </svg>
+  </button>
   <script>
     (function() {{
+      var map = null;
+      var userInteracted = false;
+      var debounce;
+      var locateBtn = document.getElementById('locateBtn');
+      var hint = document.getElementById('hint');
+
+      function post() {{
+        if (!map) return;
+        var c = map.getCenter();
+        if (!c) return;
+        var payload = {{ type: 'map-pin', lat: c.lat(), lng: c.lng(), zoom: map.getZoom() }};
+        var msg = JSON.stringify(payload);
+        try {{ window.parent.postMessage(msg, '*'); }} catch(e) {{}}
+        if (window.ReactNativeWebView) {{
+          try {{ window.ReactNativeWebView.postMessage(msg); }} catch(e) {{}}
+        }}
+      }}
+
+      function flyTo(lat, lng, z) {{
+        if (!map) return;
+        userInteracted = true;
+        map.panTo({{ lat: lat, lng: lng }});
+        if (z) map.setZoom(z);
+        clearTimeout(debounce);
+        debounce = setTimeout(post, 500);
+      }}
+
+      function setLocateState(state) {{
+        // state: 'idle' | 'loading' | 'granted' | 'denied'
+        locateBtn.classList.remove('loading', 'granted');
+        locateBtn.innerHTML = '';
+        if (state === 'loading') {{
+          locateBtn.classList.add('loading');
+          var s = document.createElement('div');
+          s.className = 'spinner';
+          locateBtn.appendChild(s);
+        }} else {{
+          var color = state === 'granted' ? '#FF5722' : '#666';
+          locateBtn.innerHTML = "<svg width='24' height='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>" +
+            "<circle cx='12' cy='12' r='3' fill='" + color + "'/>" +
+            "<path d='M12 2v3M12 19v3M2 12h3M19 12h3M12 6a6 6 0 100 12 6 6 0 000-12z' stroke='" + color + "' stroke-width='2' fill='none' stroke-linecap='round'/>" +
+            "</svg>";
+        }}
+      }}
+
+      function requestLocation(showHint) {{
+        if (!navigator.geolocation) {{
+          if (showHint) alert('Geolocation is not supported by your browser.');
+          setLocateState('idle');
+          return;
+        }}
+        setLocateState('loading');
+        navigator.geolocation.getCurrentPosition(
+          function(pos) {{
+            var lat = pos.coords.latitude;
+            var lng = pos.coords.longitude;
+            flyTo(lat, lng, 17);
+            setLocateState('granted');
+            hint.textContent = 'Pin placed at your current location';
+          }},
+          function(err) {{
+            setLocateState('idle');
+            if (showHint) {{
+              hint.textContent = 'Location unavailable — drag the map to place the pin';
+              setTimeout(function() {{ hint.textContent = 'Drag the map to place the pin'; }}, 3000);
+            }}
+          }},
+          {{ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }}
+        );
+      }}
+
+      locateBtn.addEventListener('click', function() {{ requestLocation(true); }});
+
       window.__gm_ready = function() {{
         try {{
-          var map = new google.maps.Map(document.getElementById('map'), {{
+          map = new google.maps.Map(document.getElementById('map'), {{
             center: {{ lat: {lat}, lng: {lng} }},
             zoom: {zoom},
             disableDefaultUI: false,
@@ -215,18 +313,6 @@ async def geo_map_picker_page(
             gestureHandling: 'greedy',
             clickableIcons: false,
           }});
-          var debounce;
-          var userInteracted = false;
-          function post() {{
-            var c = map.getCenter();
-            if (!c) return;
-            var payload = {{ type: 'map-pin', lat: c.lat(), lng: c.lng(), zoom: map.getZoom() }};
-            var msg = JSON.stringify(payload);
-            try {{ window.parent.postMessage(msg, '*'); }} catch(e) {{}}
-            if (window.ReactNativeWebView) {{
-              try {{ window.ReactNativeWebView.postMessage(msg); }} catch(e) {{}}
-            }}
-          }}
           map.addListener('dragstart', function() {{ userInteracted = true; }});
           map.addListener('dragend', function() {{
             clearTimeout(debounce);
@@ -241,15 +327,19 @@ async def geo_map_picker_page(
             try {{
               var data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
               if (data && data.type === 'fly-to' && typeof data.lat === 'number') {{
-                userInteracted = true;
-                map.panTo({{ lat: data.lat, lng: data.lng }});
-                if (data.zoom) map.setZoom(data.zoom);
-                clearTimeout(debounce);
-                debounce = setTimeout(post, 500);
+                flyTo(data.lat, data.lng, data.zoom || 15);
+              }}
+              if (data && data.type === 'request-locate') {{
+                requestLocation(false);
               }}
             }} catch(e) {{}}
           }});
           setTimeout(post, 400);
+          // Automatically try to zoom to the user's location on first load.
+          // If permission is already granted (or the OS returns it silently),
+          // this fires without a native prompt. Otherwise the OS prompts once
+          // and — either way — the recenter button remains available.
+          setTimeout(function() {{ requestLocation(false); }}, 600);
         }} catch (err) {{
           document.body.innerHTML = "<div class='fatal'>Unable to load Google Maps. Please make sure the Maps JavaScript API is enabled on the server key.</div>";
         }}

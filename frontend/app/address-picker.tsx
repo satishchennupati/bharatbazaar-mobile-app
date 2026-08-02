@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
+import * as Location from "expo-location";
 
 import { api, resolveImageUrl } from "@/src/lib/api";
 import { useApp, type SelectedAddress } from "@/src/store/app-context";
@@ -111,6 +112,8 @@ function MapPickerNative({ initial, onPin, flyTo }: MapProps) {
       style={{ flex: 1 }}
       javaScriptEnabled
       domStorageEnabled
+      geolocationEnabled
+      originWhitelist={["*"]}
       testID="map-picker-webview"
     />
   );
@@ -138,6 +141,35 @@ export default function AddressPicker() {
   // fired by the map's idle event during tile loads or micro-movements.
   const lastResolvedRef = useRef<{ lat: number; lng: number } | null>(null);
   const inFlightRef = useRef(false);
+
+  // ---- Prime device location on first mount ----
+  // Ask nicely for location permission. If granted we fly the map to the user's
+  // precise coordinates at a high zoom the moment the map is ready. Denials are
+  // silent — the recenter button in the map's overlay is still available.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        let granted = status === "granted";
+        if (!granted) {
+          const req = await Location.requestForegroundPermissionsAsync();
+          granted = req.status === "granted";
+        }
+        if (!granted || cancelled) return;
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (cancelled) return;
+        setFlyTo({ lat: pos.coords.latitude, lng: pos.coords.longitude, zoom: 17 });
+      } catch {
+        /* silent */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ---- Autocomplete ----
   useEffect(() => {

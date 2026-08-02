@@ -10,6 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, resolveImageUrl, type Category, type Product } from "@/src/lib/api";
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { ProductAddButton } from "@/src/components/product-add-button";
+import { FloatingCartBar } from "@/src/components/floating-cart-bar";
 import { colors, radius, spacing } from "@/src/theme";
 
 export default function CategoryScreen() {
@@ -94,7 +95,7 @@ export default function CategoryScreen() {
           keyExtractor={(p) => p.id}
           numColumns={2}
           columnWrapperStyle={{ gap: spacing.md, paddingHorizontal: spacing.lg }}
-          contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: 40, gap: spacing.md }}
+          contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: 120, gap: spacing.md }}
           renderItem={({ item }) => (
             <Pressable style={styles.card} onPress={() => router.push(`/product/${item.id}`)} testID={`cat-prod-${item.id}`}>
               <View style={styles.img}>
@@ -121,6 +122,7 @@ export default function CategoryScreen() {
           )}
         />
       )}
+      <FloatingCartBar bottomInset={16} />
     </SafeAreaView>
   );
 }
