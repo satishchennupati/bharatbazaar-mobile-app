@@ -1,0 +1,30 @@
+{
+  "summary": "Frontend-only iteration 13: verified the new phone-step 'Reset password with OTP' CTA on /app/frontend/app/(auth)/login.tsx end-to-end against live backend + live Twilio (OTP read from db.otp_sessions via mongosh). ALL 4 acceptance criteria pass: (a) CTA renders on the initial phone-entry step (testID='auth-forgot-password-phone-step', visible below Continue with divider + key icon + hint 'Have an account and forgot your password?'). (b) Tapping with EMPTY phone shows the exact inline error 'Please enter your phone number first, then tap Reset password.' — no API call fired. (c) Tapping with a VALID phone (+355695808480) POSTs /api/auth/forgot-password/send-otp and transitions to step 'forgot-verify' where testID='auth-forgot-otp-input' is visible and title 'Reset password' renders. (d) Entering OTP (645702 from Mongo) → /verify-otp succeeds → 'forgot-reset' step (testID='auth-forgot-newpw-input') → submitting new password calls /reset which auto-logs in and routes to /(tabs) (home screen 'Hi, Quick 👋' with Deliver-to Tirana banner). (c-old) The pre-existing 'Forgot password?' link on the password step (testID='auth-forgot-password') is still visible after entering a valid registered phone, so the previous entry point is unaffected. No regressions observed in the phone→password flow (password step reached correctly for existing user). Quick-user password was reset back to '123456' at the end of the flow so credentials remain stable for future runs.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/tmp/phone_step.png (CTA visible on initial phone step)",
+    "/tmp/forgot_verify.png (Reset password / OTP step reached after valid phone)",
+    "/tmp/after_reset.png (Home /(tabs) after successful reset+auto-login)"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "login.tsx onForgotFromPhoneStep correctly gates on canSubmitPhone before calling onSendResetOtp — matches spec exactly.",
+    "The empty-phone error string in login.tsx:192 matches the review request verbatim.",
+    "'Reset password with OTP' CTA is visually well separated (top divider, primaryLight background, primary border, key-outline icon) so users can't miss it — good UX.",
+    "The existing password-step 'Forgot password?' link (testID='auth-forgot-password') reuses the same onSendResetOtp handler, so both entry points converge on the same forgot-verify state — no code duplication.",
+    "onResetPassword persists via setSession then router.replace('/(tabs)') — auto-login works as designed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (frontend-only request)", "frontend": "100% (4/4 acceptance criteria)"},
+  "seed_data_creation": "Two POST /api/auth/forgot-password/send-otp calls made against +355695808480 during test (created 2 db.otp_sessions rows with purpose='reset'). Live Twilio SMS was delivered. Quick-user password was reset via the flow and immediately reset back to '123456' to preserve documented credentials.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Onboarding gate: fresh browser sessions land on /onboarding, not /login. Direct-nav to /login works once language is selected OR after clicking 'Continue' once on the language screen (any language is fine — English is default-checked). mongosh is available: `mongosh --quiet bharatbazaar --eval 'db.otp_sessions.find({phone:\"+355695808480\",purpose:\"reset\"}).sort({_id:-1}).limit(1).toArray()[0].code'` returns the current reset OTP. Live Twilio is active — do not run this flow in a loop, it sends real SMS. Web build converts /(tabs) group to '/' so post-login URL is the site root, not '/(tabs)'.",
+  "rca_of_issue": "N/A — bug fix verified working. Original bug: no forgot-password entry point on the phone-entry step of the login screen. Fix: added a prominent 'Reset password with OTP' Pressable (testID='auth-forgot-password-phone-step') that (a) validates the phone via canSubmitPhone, (b) shows an inline hint if empty, (c) otherwise reuses onSendResetOtp to hit /api/auth/forgot-password/send-otp and transition to the existing 'forgot-verify' step. Fix cleanly reuses existing state machine; no regressions to the existing password-step forgot link or the new-signup OTP flow."
+}

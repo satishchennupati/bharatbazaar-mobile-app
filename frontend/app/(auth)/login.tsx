@@ -184,6 +184,17 @@ export default function Login() {
   };
 
   // ------------- Forgot password -------------
+  const onForgotFromPhoneStep = async () => {
+    // Entry point from the initial phone-entry step. Validate the phone,
+    // send OTP, and jump straight to the OTP-verify step.
+    setError(null);
+    if (!canSubmitPhone) {
+      setError("Please enter your phone number first, then tap Reset password.");
+      return;
+    }
+    await onSendResetOtp();
+  };
+
   const onSendResetOtp = async () => {
     setError(null);
     setLoading(true);
@@ -325,6 +336,18 @@ export default function Login() {
               <Text style={styles.ctaText}>{loading ? t("loading") : t("continue")}</Text>
               {!loading && <Ionicons name="arrow-forward" size={18} color="#fff" />}
             </Pressable>
+            <View style={styles.forgotWrap}>
+              <Text style={styles.forgotHint}>Have an account and forgot your password?</Text>
+              <Pressable
+                onPress={onForgotFromPhoneStep}
+                disabled={loading}
+                style={styles.forgotBtn}
+                testID="auth-forgot-password-phone-step"
+              >
+                <Ionicons name="key-outline" size={16} color={colors.primary} />
+                <Text style={styles.forgotBtnText}>Reset password with OTP</Text>
+              </Pressable>
+            </View>
           </>
         )}
 
@@ -676,6 +699,27 @@ const styles = StyleSheet.create({
   ctaText: { color: "#fff", fontWeight: "700", fontSize: 16 },
   resend: { padding: spacing.md, alignItems: "center" },
   resendText: { color: colors.primary, fontWeight: "600" },
+  forgotWrap: {
+    marginTop: spacing.lg,
+    paddingTop: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    alignItems: "center",
+    gap: 8,
+  },
+  forgotHint: { fontSize: 12, color: colors.textMuted },
+  forgotBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryLight,
+  },
+  forgotBtnText: { color: colors.primary, fontWeight: "700", fontSize: 13 },
   demoBox: {
     marginTop: spacing.md,
     padding: spacing.md,
