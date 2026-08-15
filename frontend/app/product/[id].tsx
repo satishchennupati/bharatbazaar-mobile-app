@@ -9,13 +9,15 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api, resolveImageUrl, type Product } from "@/src/lib/api";
 import { useApp, formatPrice } from "@/src/store/app-context";
+import { useCartActions } from "@/src/hooks/use-cart-actions";
 import { ProductAddButton } from "@/src/components/product-add-button";
 import { colors, radius, spacing } from "@/src/theme";
 
 export default function ProductDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { t, currency, applyCart, cartQtyMap } = useApp();
+  const { t, currency, cartQtyMap } = useApp();
+  const cartActions = useCartActions();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const cartQty = product ? (cartQtyMap[product.id] || 0) : 0;
@@ -30,17 +32,11 @@ export default function ProductDetail() {
 
   const add = async () => {
     if (!product) return;
-    try {
-      const c = await api.post<{ items: any[]; count: number }>("/cart", { product_id: product.id, qty: 1 }, true);
-      applyCart(c.items, c.count);
-    } catch {}
+    await cartActions.addToCart(product.id, 1);
   };
   const setQtyRemote = async (qty: number) => {
     if (!product) return;
-    try {
-      const c = await api.patch<{ items: any[]; count: number }>(`/cart/${product.id}`, { qty });
-      applyCart(c.items, c.count);
-    } catch {}
+    await cartActions.setQty(product.id, qty);
   };
 
   if (loading) {

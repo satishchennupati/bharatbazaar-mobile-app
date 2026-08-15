@@ -9,6 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api, resolveImageUrl, type Category, type Product } from "@/src/lib/api";
 import { useApp, formatPrice } from "@/src/store/app-context";
+import { useCartActions } from "@/src/hooks/use-cart-actions";
 import { ProductAddButton } from "@/src/components/product-add-button";
 import { FloatingCartBar } from "@/src/components/floating-cart-bar";
 import { colors, radius, spacing } from "@/src/theme";
@@ -16,7 +17,8 @@ import { colors, radius, spacing } from "@/src/theme";
 export default function CategoryScreen() {
   const router = useRouter();
   const { slug, q } = useLocalSearchParams<{ slug: string; q?: string }>();
-  const { t, currency, applyCart, cartQtyMap } = useApp();
+  const { t, currency, cartQtyMap } = useApp();
+  const cartActions = useCartActions();
   const [products, setProducts] = useState<Product[]>([]);
   const [cat, setCat] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,16 +46,10 @@ export default function CategoryScreen() {
   }, [slug, q, isSearch]);
 
   const addToCart = async (p: Product) => {
-    try {
-      const res = await api.post<{ items: any[]; count: number }>("/cart", { product_id: p.id, qty: 1 }, true);
-      applyCart(res.items, res.count);
-    } catch {}
+    await cartActions.addToCart(p.id, 1);
   };
   const setQty = async (pid: string, qty: number) => {
-    try {
-      const c = await api.patch<{ items: any[]; count: number }>(`/cart/${pid}`, { qty });
-      applyCart(c.items, c.count);
-    } catch {}
+    await cartActions.setQty(pid, qty);
   };
 
   if (loading) {
