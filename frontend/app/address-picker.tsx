@@ -11,7 +11,7 @@
  * autocomplete suggestion, so both interactions stay in sync.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -242,9 +242,36 @@ export default function AddressPicker() {
 
   const isServiceable = !!(selected && selected.serviceable);
 
+  // Editable form fields — pre-populated whenever a new location is resolved,
+  // so users can visually confirm the auto-fill worked and tweak if needed.
+  const [line1Edit, setLine1Edit] = useState("");
+  const [areaEdit, setAreaEdit] = useState("");
+  const [cityEdit, setCityEdit] = useState("");
+  const [stateEdit, setStateEdit] = useState("");
+  const [postalEdit, setPostalEdit] = useState("");
+
+  useEffect(() => {
+    if (!selected) return;
+    setLine1Edit(selected.line1 || selected.formatted_address?.split(",")[0] || "");
+    setAreaEdit(selected.area || "");
+    setCityEdit(selected.city || "");
+    setStateEdit(selected.state || "");
+    setPostalEdit(selected.postal_code || "");
+  }, [selected]);
+
   const onConfirm = () => {
     if (!selected || !isServiceable) return;
-    setSelectedAddress(selected);
+    // Merge any manual edits back into the SelectedAddress payload before
+    // handing off to the checkout screen.
+    const merged: SelectedAddress = {
+      ...selected,
+      line1: line1Edit.trim() || selected.line1,
+      area: areaEdit.trim() || selected.area,
+      city: cityEdit.trim() || selected.city,
+      state: stateEdit.trim() || selected.state,
+      postal_code: postalEdit.trim() || selected.postal_code,
+    };
+    setSelectedAddress(merged);
     router.back();
   };
 
@@ -305,6 +332,11 @@ export default function AddressPicker() {
 
       {/* Bottom sheet with resolved address + confirm */}
       <View style={styles.bottomSheet}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ gap: spacing.md }}
+          showsVerticalScrollIndicator={false}
+        >
         {resolving ? (
           <View style={styles.resolvingRow}>
             <ActivityIndicator size="small" color={colors.primary} />
@@ -325,6 +357,68 @@ export default function AddressPicker() {
                 </Text>
               </View>
             </View>
+
+            {isServiceable && (
+              <View style={styles.fieldsGrid} testID="addr-editable-fields">
+                <View style={styles.fieldFull}>
+                  <Text style={styles.fieldLabel}>Street / House</Text>
+                  <TextInput
+                    value={line1Edit}
+                    onChangeText={setLine1Edit}
+                    placeholder="Street & house number"
+                    placeholderTextColor={colors.textDisabled}
+                    style={styles.fieldInput}
+                    testID="addr-line1-input"
+                  />
+                </View>
+                <View style={styles.fieldFull}>
+                  <Text style={styles.fieldLabel}>Area / Neighborhood</Text>
+                  <TextInput
+                    value={areaEdit}
+                    onChangeText={setAreaEdit}
+                    placeholder="Lagje / Zone"
+                    placeholderTextColor={colors.textDisabled}
+                    style={styles.fieldInput}
+                    testID="addr-area-input"
+                  />
+                </View>
+                <View style={styles.fieldHalf}>
+                  <Text style={styles.fieldLabel}>City</Text>
+                  <TextInput
+                    value={cityEdit}
+                    onChangeText={setCityEdit}
+                    placeholder="City"
+                    placeholderTextColor={colors.textDisabled}
+                    style={styles.fieldInput}
+                    testID="addr-city-input"
+                  />
+                </View>
+                <View style={styles.fieldHalf}>
+                  <Text style={styles.fieldLabel}>State / Qark</Text>
+                  <TextInput
+                    value={stateEdit}
+                    onChangeText={setStateEdit}
+                    placeholder="Qark"
+                    placeholderTextColor={colors.textDisabled}
+                    style={styles.fieldInput}
+                    testID="addr-state-input"
+                  />
+                </View>
+                <View style={styles.fieldHalf}>
+                  <Text style={styles.fieldLabel}>Postal code (optional)</Text>
+                  <TextInput
+                    value={postalEdit}
+                    onChangeText={setPostalEdit}
+                    placeholder="1001"
+                    placeholderTextColor={colors.textDisabled}
+                    keyboardType="number-pad"
+                    style={styles.fieldInput}
+                    testID="addr-postal-input"
+                  />
+                </View>
+              </View>
+            )}
+
             {!isServiceable && (
               <View style={styles.errorBox} testID="addr-unserviceable">
                 <Ionicons name="alert-circle" size={16} color={colors.error} />
@@ -349,6 +443,7 @@ export default function AddressPicker() {
         >
           <Text style={styles.ctaText}>{isServiceable ? "Use this address" : "Not serviceable"}</Text>
         </Pressable>
+        </ScrollView>
       </View>
     </SafeAreaView>
   );
@@ -406,13 +501,39 @@ const styles = StyleSheet.create({
   },
   suggMain: { fontSize: 14, fontWeight: "600", color: colors.textMain },
   suggSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  mapArea: { flex: 1, backgroundColor: colors.surfaceMuted },
+  mapArea: { flex: 1, backgroundColor: colors.surfaceMuted, minHeight: 220 },
   bottomSheet: {
     padding: spacing.lg,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     gap: spacing.md,
+    maxHeight: 460,
+  },
+  fieldsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  fieldFull: { width: "100%" },
+  fieldHalf: { flexBasis: "48%", flexGrow: 1 },
+  fieldLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: colors.textMuted,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    marginBottom: 4,
+  },
+  fieldInput: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: Platform.OS === "ios" ? 10 : 8,
+    fontSize: 13,
+    color: colors.textMain,
   },
   resolvingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   resolvingText: { fontSize: 13, color: colors.textMuted, fontWeight: "600" },

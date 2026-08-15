@@ -1,0 +1,54 @@
+{
+  "summary": "Iteration 15 — verified both mobile-app bug fixes end-to-end. BUG 1 (Orders tab item detail): Orders list now renders the full expanded card the moment the tab is opened. The top-most order is auto-expanded, tapping the same card collapses it, and tapping another card expands it — validated with the quick-user (+355695808480/123456) who has 7 real orders. Each expanded card correctly displays: order id (#MBCEFA8450A style), placed date+time, colored status badge with dot, one-line item summary ('N items · qty× name'), the ITEMS section with product image, name, unit (e.g. '500 g'), qty (×1) and per-line price (510 L), the DELIVERY ADDRESS section with formatted line1/area/city/state/country and phone, price breakdown (Subtotal / Delivery fee / Total), COD tag and chevron. Data comes verbatim from /api/orders — items[] is intact and non-empty, address block populated, price fields present (validated via pytest). BUG 2 (address-picker editable fields): navigating to /address-picker as an authenticated customer resolves an initial address (used device geolocation → fell back to Tirana center) and populates all 5 editable inputs — 'addr-line1-input' = 'Rruga Sheshi Skënderbej', 'addr-area-input' = same, 'addr-city-input' = 'Tiranë', 'addr-state-input' = 'Tirana County', 'addr-postal-input' = '' (empty because Google reverse-geocode returned no postal for that pin — placeholder '1001' still shows). Editing any field and tapping 'Use this address' merges the manual edits into the SelectedAddress payload and pops back to /checkout — verified round-trip: edited postal '1055' shows up in the [data-testid=in-postal] input on /checkout, and the picker area value flows into [data-testid=in-area]. The ScrollView wrapper (maxHeight 460) keeps the map visible while all 5 fields plus the CTA remain scrollable, and the map iframe still loads /api/geo/map-picker with the expected locate-btn / greedy gestureHandling markers. Backend regression: 11/11 pytest cases pass — /api/health, /api/auth/login (customer + admin), /api/orders returns items[] with product_id+name+qty+line_lek, address block, and full price breakdown; /api/geo/reverse-geocode still returns line1/area/city/state/postal_code + serviceable flag; /api/geo/map-picker HTML still contains locate-btn and greedy gestureHandling; /api/geo/autocomplete still returns predictions list. No red-screen errors, no deprecated expo-av/expo-barcode-scanner/expo-background-fetch imports.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Orders",
+        "issues": [
+          "Pluralization: single-item orders display '1 items · 1× Rajdhani Besan' instead of '1 item · 1× Rajdhani Besan'. Non-blocking i18n polish — the /(tabs)/orders.tsx summary line always uses t('items') regardless of count."
+        ]
+      },
+      {
+        "screen": "AddressPicker",
+        "issues": [
+          "When Google reverse-geocode omits postal_code (which it did for the Tirana center coordinate), the postal input stays empty with only a '1001' placeholder — this is correct behaviour, but users may miss it because there is no visible hint that postal is optional. Consider labelling it 'Postal code (optional)' to match the /checkout screen which already labels it that way."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bugfix_iter15.py (11 tests, all passing)",
+    "/app/test_reports/pytest/iter15_results.xml",
+    "/tmp/iter15_orders_tab.png (top order auto-expanded with items + address + totals)",
+    "/tmp/iter15_orders_toggle.png (toggling: top collapsed, 2nd expanded)",
+    "/tmp/iter15_addr_picker.png (5 editable fields auto-populated from reverse-geocode)",
+    "/tmp/iter15_addr_edit_v2.png (fields after user edits: line1='MY EDITED...', postal='1050')",
+    "/tmp/iter15_ckout_final.png (edited postal 1055 carried into /checkout in-postal field)"
+  ],
+  "action_items": [
+    "OPTIONAL polish: pluralize the orders summary line — swap `${item.items.length} ${t('items')}` for a proper singular/plural helper in /app/frontend/app/(tabs)/orders.tsx line 145.",
+    "OPTIONAL polish: label the addr-postal-input as 'Postal code (optional)' in /app/frontend/app/address-picker.tsx line 408 to match /checkout terminology and reduce user friction when Google returns no postal code."
+  ],
+  "critical_code_review_comments": [
+    "/app/frontend/app/(tabs)/orders.tsx (371 lines) is single-file, uses proper testIDs for order-card-<id> and order-details-<id>, and correctly derives status colors + labels from a lookup dict. Toggle uses a Set<string> in state — clean pattern.",
+    "/app/frontend/app/address-picker.tsx (563 lines) — good separation of MapPickerWeb/MapPickerNative components, correct debouncing of reverse-geocode (500ms) and autocomplete (350ms), and a solid `lastResolvedRef` short-circuit that prevents flickering on micro-map idle events. The 5 editable field states are synced via a single useEffect on [selected] which is the right dependency.",
+    "onConfirm() merges manual edits with a `trim() || selected.field` fallback, which correctly preserves the auto-populated value when the user clears a field to whitespace — good defensive coding.",
+    "ScrollView wraps the bottom-sheet content with keyboardShouldPersistTaps='handled' — works well with keyboard on mobile."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_bugfix_iter15.py (new — 11 regression tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 tests: health, customer+admin login, orders items[]+address+price contract, reverse-geocode fields+serviceable, map-picker HTML, autocomplete)",
+    "frontend": "100% for both bug fixes: BUG 1 verified across 7 orders (auto-expand + tap-to-toggle + full item/address/totals), BUG 2 verified for the 5 editable fields + edit-and-round-trip-to-checkout flow"
+  },
+  "seed_data_creation": "None. Two read-only login POSTs and one GET /api/orders + one GET /api/geo/reverse-geocode were executed against the live backend using documented credentials; no data was mutated. The quick-user already had 7 pre-seeded orders from prior test iterations.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Regression command: `pytest /app/backend/tests/test_bugfix_iter15.py -v` (11 tests, ~4s). To reproduce the frontend flow: login as +355695808480/123456 → open Orders tab (top card should auto-expand with full item + address + totals) → tap the card to collapse, tap another to expand. For the address picker: /checkout → tap 'Pick on map' toggle → tap the full-width 'Pick address on map' button → wait ~7s for the map iframe + reverse-geocode to hydrate → verify all 5 [data-testid=addr-*-input] fields have auto-populated values → edit any field → tap [data-testid=addr-confirm-btn] → pops back to /checkout with edits merged into the visible checkout inputs (in-postal, in-area) and stored line1 used for the order payload. Note that /address-picker does NOT expose a line1 field in the /checkout UI (line1 is internal state used only in the order payload) — so if you want to verify line1 round-trip visually you'll need to inspect the network request when placing an order.",
+  "rca_of_issue": "N/A — both fixes verified in place. BUG 1 was that /(tabs)/orders.tsx used to only show 'Order #ID · N items' at the summary level with no way to drill down; the rewrite adds an inline expanded card (auto-expanded for the top order) with full item images, quantities, per-line pricing, delivery address, and totals — all rendered directly from the /api/orders payload which already included items[]. BUG 2 was that the address-picker's bottom sheet only showed the resolved formatted_address string with no visual confirmation of the underlying line1/area/city/state/postal fields; the fix adds 5 editable inputs (wrapped in a ScrollView with maxHeight 460 so the map stays visible), syncs their values from the reverse-geocode response via useEffect([selected]), and merges the manual edits back into SelectedAddress on confirm."
+}
