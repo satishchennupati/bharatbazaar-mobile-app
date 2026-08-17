@@ -63,6 +63,16 @@ export default function Profile() {
             </Text>
             <Text style={styles.sub}>{user?.phone || user?.email || ""}</Text>
           </View>
+          {user?.is_admin && (
+            <Pressable
+              onPress={() => router.push("/admin")}
+              style={styles.adminIconBtn}
+              testID="profile-admin-icon-btn"
+              hitSlop={8}
+            >
+              <Ionicons name="shield-checkmark" size={18} color="#fff" />
+            </Pressable>
+          )}
           <Pressable
             onPress={() => router.push("/complete-profile")}
             style={styles.editBtn}
@@ -100,6 +110,18 @@ export default function Profile() {
           />
           <Row icon="help-circle" label="Help & support" value="" onPress={() => {}} testID="profile-help-row" />
         </Section>
+
+        {user?.is_admin && (
+          <Section title="Admin">
+            <Row
+              icon="shield-checkmark"
+              label="Admin Panel"
+              value="Manage"
+              onPress={() => router.push("/admin")}
+              testID="profile-admin-row"
+            />
+          </Section>
+        )}
 
         <Pressable onPress={onLogout} style={styles.logoutBtn} testID="profile-logout-btn">
           <Ionicons name="log-out-outline" size={18} color={colors.error} />
@@ -240,6 +262,15 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   editText: { fontSize: 12, fontWeight: "700", color: colors.primary },
+  adminIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 6,
+  },
   name: { fontSize: 20, fontWeight: "700", color: colors.textMain },
   sub: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
   sectionTitle: {
