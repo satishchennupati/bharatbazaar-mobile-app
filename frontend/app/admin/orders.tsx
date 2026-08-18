@@ -3,7 +3,7 @@
  * Tapping a row opens /admin/order-detail?id=...
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -132,29 +132,31 @@ export default function AdminOrders() {
       </View>
 
       {/* Status filter chips */}
-      <FlatList
-        data={FILTERS}
-        keyExtractor={(f) => f.key}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
-        renderItem={({ item }) => {
-          const active = statusFilter === item.key;
-          const meta = item.key !== "all" ? STATUS_META[item.key] : null;
-          return (
-            <Pressable
-              onPress={() => setStatusFilter(item.key)}
-              style={[
-                styles.chip,
-                active && (meta ? { backgroundColor: meta.color, borderColor: meta.color } : { backgroundColor: colors.primary, borderColor: colors.primary }),
-              ]}
-              testID={`orders-chip-${item.key}`}
-            >
-              <Text style={[styles.chipText, active && { color: "#fff" }]}>{item.label}</Text>
-            </Pressable>
-          );
-        }}
-      />
+      <View style={styles.filterWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {FILTERS.map((item) => {
+            const active = statusFilter === item.key;
+            const meta = item.key !== "all" ? STATUS_META[item.key] : null;
+            return (
+              <Pressable
+                key={item.key}
+                onPress={() => setStatusFilter(item.key)}
+                style={[
+                  styles.chip,
+                  active && (meta ? { backgroundColor: meta.color, borderColor: meta.color } : { backgroundColor: colors.primary, borderColor: colors.primary }),
+                ]}
+                testID={`orders-chip-${item.key}`}
+              >
+                <Text style={[styles.chipText, active && { color: "#fff" }]}>{item.label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {/* List */}
       {loading ? (
@@ -231,10 +233,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 6,
   },
   searchInput: { flex: 1, paddingVertical: 8, fontSize: 14, color: colors.textMain },
-  filterRow: { gap: 8, paddingRight: spacing.lg },
+  filterRow: { gap: 8, paddingRight: spacing.lg, alignItems: "center" },
+  filterWrap: { marginHorizontal: -spacing.lg, paddingHorizontal: spacing.lg, paddingVertical: 2 },
   chip: {
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999,
     borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
+    minHeight: 34, alignItems: "center", justifyContent: "center",
   },
   chipText: { fontSize: 12, fontWeight: "700", color: colors.textMain },
   card: {

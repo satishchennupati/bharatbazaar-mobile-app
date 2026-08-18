@@ -673,16 +673,17 @@ const styles = StyleSheet.create({
 const modalStyles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 16 },
   sheet: {
-    width: "100%", maxWidth: 560, maxHeight: "90%",
+    width: "100%", maxWidth: 560, height: "90%",
     backgroundColor: colors.background, borderRadius: radius.xl,
     overflow: "hidden", borderWidth: 1, borderColor: colors.border,
+    flexDirection: "column",
   },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   title: { fontSize: 18, fontWeight: "800", color: colors.textMain },
-  body: { padding: spacing.lg, gap: 8 },
+  body: { padding: spacing.lg, gap: 8, paddingBottom: spacing.xl },
   imgRow: { flexDirection: "row", gap: 12 },
   imgBox: {
     width: 100, height: 100, borderRadius: radius.md,
@@ -694,5 +695,10 @@ const modalStyles = StyleSheet.create({
   stockRow: {
     flexDirection: "row", alignItems: "center", gap: 8,
     padding: 10, backgroundColor: colors.surfaceMuted, borderRadius: radius.md,
+  },
+  actionBar: {
+    flexDirection: "row", gap: 8,
+    padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border,
+    backgroundColor: colors.background,
   },
 });

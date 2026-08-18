@@ -11,7 +11,6 @@ import { api, resolveImageUrl, type Category, type Product } from "@/src/lib/api
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { useCartActions } from "@/src/hooks/use-cart-actions";
 import { ProductAddButton } from "@/src/components/product-add-button";
-import { AnimatedPromoBanner } from "@/src/components/animated-promo-banner";
 import { OffersCarousel } from "@/src/components/offers-carousel";
 import { colors, radius, spacing } from "@/src/theme";
 
@@ -105,12 +104,6 @@ export default function Home() {
         ListHeaderComponent={
           <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
             <OffersCarousel testID="home-offers-carousel" />
-            <AnimatedPromoBanner
-              headline={t("promo_headline")}
-              amount={t("promo_amount")}
-              sub={t("promo_sub")}
-              testID="home-promo-banner"
-            />
             <Text style={styles.sectionTitle}>{t("shop_by_category")}</Text>
             <Text style={styles.sectionSub}>{t("select_category")}</Text>
             <View style={styles.catGrid}>
