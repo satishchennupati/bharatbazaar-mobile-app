@@ -51,5 +51,16 @@ OFFER_IMG_DIR.mkdir(parents=True, exist_ok=True)
 LEK_PER_EUR = 100.0
 SERVICEABLE_COUNTRY_CODES = {"AL"}
 ORDER_STATUSES = ["placed", "confirmed", "packed", "out_for_delivery", "delivered", "cancelled"]
-FREE_DELIVERY_MIN_LEK = 1500.0
+
+# Shipping / delivery pricing
+# Bill above this threshold => free delivery
+FREE_DELIVERY_MIN_LEK = 2000.0
+# Base fees up to 2 kg by zone
+SHIPPING_BASE_TIRANA_LEK = 200.0
+SHIPPING_BASE_OUTSIDE_LEK = 300.0
+# Weight threshold beyond which we start charging per-gram
+SHIPPING_WEIGHT_INCLUDED_G = 2000
+# Extra fee per gram above the included weight (== 50 L / kg)
+SHIPPING_EXTRA_LEK_PER_GRAM = 0.05
+# Deprecated flat fee — kept for legacy callers; new logic uses the zone/weight rules above.
 DELIVERY_FEE_LEK = 99.0

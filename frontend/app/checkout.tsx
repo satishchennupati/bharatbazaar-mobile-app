@@ -19,9 +19,18 @@ import { ALBANIA_QARKS, bashkiaFor, matchQark, matchBashkia } from "@/src/data/a
 import { SearchablePicker, type PickerItem } from "@/src/components/searchable-picker";
 import { DropdownField } from "@/src/components/dropdown-field";
 
-const FREE_MIN_LEK = 1500;
-const DELIVERY_FEE_LEK = 99;
 const LEK_PER_EUR = 100;
+
+type ShippingQuote = {
+  fee_lek: number;
+  zone: "tirana" | "outside";
+  base_lek: number;
+  extra_lek: number;
+  billable_extra_grams: number;
+  weight_grams: number;
+  free_shipping: boolean;
+  free_threshold_lek: number;
+};
 
 type EntryMode = "manual" | "map";
 
@@ -32,6 +41,8 @@ export default function Checkout() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shipQuote, setShipQuote] = useState<ShippingQuote | null>(null);
+  const [quoting, setQuoting] = useState(false);
 
   const [entryMode, setEntryMode] = useState<EntryMode>("manual");
 
@@ -115,9 +126,45 @@ export default function Checkout() {
   const couponDiscLek = appliedCoupon?.discount_lek || 0;
   const couponDiscEur = couponDiscLek / LEK_PER_EUR;
   const netSubLek = Math.max(0, subLek - couponDiscLek);
-  const isFree = netSubLek >= FREE_MIN_LEK;
-  const feeLek = isFree ? 0 : DELIVERY_FEE_LEK;
-  const feeEur = isFree ? 0 : DELIVERY_FEE_LEK / LEK_PER_EUR;
+
+  // Live shipping quote. Refetched whenever the address city or the cart
+  // subtotal changes (subtotal matters because we hit free-shipping at 2000 L).
+  useEffect(() => {
+    if (loading || !cart) return;
+    let cancelled = false;
+    // Only quote once the user has picked *some* location signal.
+    const hasCity = !!(city || "").trim();
+    if (!hasCity) {
+      setShipQuote(null);
+      return;
+    }
+    setQuoting(true);
+    const address = {
+      city,
+      state,
+      country: country?.name || "Albania",
+      country_code: countryCode,
+    };
+    api
+      .post<ShippingQuote & { subtotal_lek: number }>("/orders/shipping-quote", { address }, true)
+      .then((q) => {
+        if (!cancelled) setShipQuote(q);
+      })
+      .catch(() => {
+        if (!cancelled) setShipQuote(null);
+      })
+      .finally(() => {
+        if (!cancelled) setQuoting(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, city, state, countryCode, subLek, couponDiscLek]);
+
+  const feeLek = shipQuote ? shipQuote.fee_lek : 0;
+  const feeEur = feeLek / LEK_PER_EUR;
+  const isFree = !!shipQuote?.free_shipping;
   const totalLek = netSubLek + feeLek;
   const totalEur = Math.max(0, subEur - couponDiscEur) + feeEur;
 
@@ -514,9 +561,40 @@ export default function Checkout() {
           )}
           <Row
             label={t("delivery_fee")}
-            value={isFree ? t("free") : formatPrice(feeLek, feeEur, currency)}
+            value={
+              !shipQuote
+                ? "—"
+                : isFree
+                ? t("free")
+                : formatPrice(feeLek, feeEur, currency)
+            }
             valueColor={isFree ? colors.success : undefined}
           />
+          {shipQuote && !isFree ? (
+            <Text style={styles.shipHint} testID="ship-hint">
+              {shipQuote.zone === "tirana" ? "Tirana city" : "Outside Tirana"}
+              {" · "}Base {Math.round(shipQuote.base_lek)} L
+              {shipQuote.billable_extra_grams > 0
+                ? ` + ${Math.round(shipQuote.extra_lek)} L for extra ${(
+                    shipQuote.billable_extra_grams / 1000
+                  ).toFixed(2)} kg`
+                : ""}
+              {"\n"}
+              Weight {(shipQuote.weight_grams / 1000).toFixed(2)} kg · Free above{" "}
+              {Math.round(shipQuote.free_threshold_lek)} L
+            </Text>
+          ) : null}
+          {shipQuote && isFree ? (
+            <Text style={[styles.shipHint, { color: colors.success }]} testID="ship-free-hint">
+              You qualify for free shipping (order over {Math.round(shipQuote.free_threshold_lek)} L). 🎉
+            </Text>
+          ) : null}
+          {!shipQuote && !quoting && !city ? (
+            <Text style={styles.shipHint}>
+              Select a delivery city to see shipping charges.
+            </Text>
+          ) : null}
+          {quoting ? <Text style={styles.shipHint}>Calculating shipping…</Text> : null}
           <View style={styles.divider} />
           <Row label={t("total")} value={formatPrice(totalLek, totalEur, currency)} bold />
         </View>
@@ -866,6 +944,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: 4 },
+  shipHint: { fontSize: 11, color: colors.textMuted, lineHeight: 15, marginTop: 2 },
   error: { color: colors.error, fontSize: 13, marginTop: 8 },
   footerBar: {
     position: "absolute",

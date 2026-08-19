@@ -27,19 +27,30 @@ def _normalize_offer_type(o: dict) -> dict:
     if t == "banner":
         for f in ("coupon_code", "discount_type", "discount_value", "min_order_lek",
                   "max_discount_lek", "usage_limit", "per_user_limit",
-                  "category_slug", "cat_discount_percent"):
+                  "category_slug", "cat_discount_percent",
+                  "promo_headline", "promo_amount", "promo_sub"):
             o.pop(f, None)
     elif t == "coupon":
         for f in ("banner_image_url", "banner_bg_color", "banner_text_color",
                   "cta_label", "cta_target", "banner_image_data_url",
-                  "category_slug", "cat_discount_percent"):
+                  "category_slug", "cat_discount_percent",
+                  "promo_headline", "promo_amount", "promo_sub"):
             o.pop(f, None)
     elif t == "category_discount":
         for f in ("banner_image_url", "banner_bg_color", "banner_text_color",
                   "cta_label", "cta_target", "banner_image_data_url",
                   "coupon_code", "discount_type", "discount_value",
                   "min_order_lek", "max_discount_lek",
-                  "usage_limit", "per_user_limit"):
+                  "usage_limit", "per_user_limit",
+                  "promo_headline", "promo_amount", "promo_sub"):
+            o.pop(f, None)
+    elif t == "promo_strip":
+        for f in ("banner_image_url", "banner_bg_color", "banner_text_color",
+                  "cta_label", "cta_target", "banner_image_data_url",
+                  "coupon_code", "discount_type", "discount_value",
+                  "min_order_lek", "max_discount_lek",
+                  "usage_limit", "per_user_limit",
+                  "category_slug", "cat_discount_percent"):
             o.pop(f, None)
     return o
 
@@ -61,6 +72,10 @@ def _validate_offer_payload(payload: dict, *, is_create: bool):
         pct = float(payload.get("cat_discount_percent") or 0)
         if pct <= 0 or pct > 100:
             raise HTTPException(status_code=400, detail="cat_discount_percent must be between 0 and 100")
+    elif t == "promo_strip":
+        # Title acts as an admin-only label; require at least a headline.
+        if not (payload.get("promo_headline") or payload.get("title")):
+            raise HTTPException(status_code=400, detail="promo_headline is required for promo_strip")
 
 
 @router.get("")

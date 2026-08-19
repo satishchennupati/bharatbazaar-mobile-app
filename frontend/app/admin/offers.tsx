@@ -14,8 +14,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, resolveImageUrl } from "@/src/lib/api";
 import { colors, radius, spacing } from "@/src/theme";
 import { SearchablePicker, type PickerItem } from "@/src/components/searchable-picker";
+import { DateField } from "@/src/components/date-field";
 
-type OfferType = "banner" | "coupon" | "category_discount";
+type OfferType = "banner" | "coupon" | "category_discount" | "promo_strip";
 
 type Offer = {
   id: string;
@@ -30,6 +31,11 @@ type Offer = {
   banner_text_color?: string;
   cta_label?: string;
   cta_target?: string;
+
+  // promo_strip
+  promo_headline?: string;
+  promo_amount?: string;
+  promo_sub?: string;
 
   coupon_code?: string;
   discount_type?: "percent" | "fixed";
@@ -51,6 +57,7 @@ type Category = { slug: string; name: string; emoji?: string };
 
 const TABS: { key: OfferType; label: string; icon: any }[] = [
   { key: "banner", label: "Banners", icon: "images-outline" },
+  { key: "promo_strip", label: "Promo strip", icon: "megaphone-outline" },
   { key: "coupon", label: "Coupons", icon: "pricetag-outline" },
   { key: "category_discount", label: "Category %", icon: "layers-outline" },
 ];
@@ -116,6 +123,10 @@ export default function AdminOffers() {
     } else if (tab === "category_discount") {
       base.category_slug = categories[0]?.slug || "";
       base.cat_discount_percent = 10;
+    } else if (tab === "promo_strip") {
+      base.promo_headline = "Free shipping over";
+      base.promo_amount = "2000 L";
+      base.promo_sub = "Cash on delivery available";
     }
     setEditing(base);
   };
@@ -304,6 +315,14 @@ function OfferCard({
             <View style={styles.metaGrid}>
               {offer.cta_label ? <MetaChip icon="arrow-forward" text={offer.cta_label} /> : null}
               {offer.cta_target ? <MetaChip icon="link" text={offer.cta_target} /> : null}
+            </View>
+          )}
+
+          {offer.type === "promo_strip" && (
+            <View style={styles.metaGrid}>
+              {offer.promo_headline ? <MetaChip icon="chatbubble-ellipses" text={offer.promo_headline} strong /> : null}
+              {offer.promo_amount ? <MetaChip icon="cash" text={offer.promo_amount} /> : null}
+              {offer.promo_sub ? <MetaChip icon="information-circle" text={offer.promo_sub} /> : null}
             </View>
           )}
         </View>
@@ -703,26 +722,84 @@ function OfferEditor({
               </>
             )}
 
+            {type === "promo_strip" && (
+              <>
+                <Field label="Preview">
+                  <View style={styles.promoPreview}>
+                    <View style={styles.promoIcon}>
+                      <Ionicons name="rocket" size={22} color="#fff" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.promoHeadline} numberOfLines={1}>
+                        <Text style={{ fontWeight: "800" }}>
+                          {draft.promo_headline || "Free shipping"}
+                        </Text>
+                        {draft.promo_amount ? (
+                          <Text style={styles.promoAmount}>{`  ${draft.promo_amount}`}</Text>
+                        ) : null}
+                      </Text>
+                      {draft.promo_sub ? (
+                        <Text style={styles.promoSub} numberOfLines={2}>
+                          {draft.promo_sub}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+                </Field>
+                <Field label="Headline">
+                  <TextInput
+                    value={draft.promo_headline || ""}
+                    onChangeText={(v) => set({ promo_headline: v })}
+                    placeholder="Free shipping over"
+                    placeholderTextColor={colors.textDisabled}
+                    style={styles.input}
+                    testID="admin-offer-promo-headline"
+                  />
+                </Field>
+                <Field label="Amount / highlight">
+                  <TextInput
+                    value={draft.promo_amount || ""}
+                    onChangeText={(v) => set({ promo_amount: v })}
+                    placeholder="2000 L"
+                    placeholderTextColor={colors.textDisabled}
+                    style={styles.input}
+                    testID="admin-offer-promo-amount"
+                  />
+                </Field>
+                <Field label="Subtitle">
+                  <TextInput
+                    value={draft.promo_sub || ""}
+                    onChangeText={(v) => set({ promo_sub: v })}
+                    placeholder="Cash on delivery available"
+                    placeholderTextColor={colors.textDisabled}
+                    style={styles.input}
+                    testID="admin-offer-promo-sub"
+                  />
+                </Field>
+                <Text style={styles.hintText}>
+                  This ribbon is shown at the top of the home screen when active. Only one
+                  promo strip is displayed at a time (highest priority wins).
+                </Text>
+              </>
+            )}
+
             {/* Date window */}
             <View style={styles.rowFields}>
-              <Field label="Starts at (ISO)" style={{ flex: 1 }}>
-                <TextInput
+              <Field label="Starts at" style={{ flex: 1 }}>
+                <DateField
                   value={draft.starts_at || ""}
-                  onChangeText={(v) => set({ starts_at: v })}
-                  placeholder="2026-01-01"
-                  placeholderTextColor={colors.textDisabled}
-                  style={styles.input}
-                  autoCapitalize="none"
+                  onChange={(v) => set({ starts_at: v })}
+                  placeholder="Pick start date"
+                  testID="admin-offer-starts-at"
                 />
               </Field>
-              <Field label="Ends at (ISO)" style={{ flex: 1 }}>
-                <TextInput
+              <Field label="Ends at" style={{ flex: 1 }}>
+                <DateField
                   value={draft.ends_at || ""}
-                  onChangeText={(v) => set({ ends_at: v })}
-                  placeholder="2026-12-31"
-                  placeholderTextColor={colors.textDisabled}
-                  style={styles.input}
-                  autoCapitalize="none"
+                  onChange={(v) => set({ ends_at: v })}
+                  placeholder="Pick end date"
+                  minDate={draft.starts_at ? new Date(String(draft.starts_at).slice(0, 10)) : undefined}
+                  testID="admin-offer-ends-at"
                 />
               </Field>
             </View>
@@ -983,6 +1060,32 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   hintText: { fontSize: 11, color: colors.textMuted, fontStyle: "italic" },
+
+  promoPreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: colors.primary,
+    borderRadius: radius.lg,
+    padding: 14,
+  },
+  promoIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center", justifyContent: "center",
+  },
+  promoHeadline: { color: "#fff", fontSize: 14, lineHeight: 20 },
+  promoAmount: {
+    color: "#B26A00",
+    fontSize: 13,
+    fontWeight: "800",
+    backgroundColor: "#FFF8E1",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  promoSub: { color: "rgba(255,255,255,0.85)", fontSize: 12, marginTop: 4 },
 
   modalFooter: {
     flexDirection: "row",

@@ -197,7 +197,7 @@ class AdminProductPatch(BaseModel):
 
 
 # ---------- Offers (Phase 4) ----------
-OfferType = Literal["banner", "coupon", "category_discount"]
+OfferType = Literal["banner", "coupon", "category_discount", "promo_strip"]
 DiscountType = Literal["percent", "fixed"]
 
 
@@ -216,6 +216,11 @@ class OfferIn(BaseModel):
     cta_label: str = ""
     cta_target: str = ""
     banner_image_data_url: Optional[str] = None
+
+    # promo_strip (the always-visible animated ribbon on Home)
+    promo_headline: Optional[str] = None
+    promo_amount: Optional[str] = None
+    promo_sub: Optional[str] = None
 
     # coupon
     coupon_code: Optional[str] = None
@@ -249,6 +254,10 @@ class OfferPatch(BaseModel):
     cta_label: Optional[str] = None
     cta_target: Optional[str] = None
     banner_image_data_url: Optional[str] = None
+
+    promo_headline: Optional[str] = None
+    promo_amount: Optional[str] = None
+    promo_sub: Optional[str] = None
 
     coupon_code: Optional[str] = None
     discount_type: Optional[DiscountType] = None

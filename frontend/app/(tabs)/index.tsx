@@ -11,8 +11,17 @@ import { api, resolveImageUrl, type Category, type Product } from "@/src/lib/api
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { useCartActions } from "@/src/hooks/use-cart-actions";
 import { ProductAddButton } from "@/src/components/product-add-button";
+import { AnimatedPromoBanner } from "@/src/components/animated-promo-banner";
 import { OffersCarousel } from "@/src/components/offers-carousel";
 import { colors, radius, spacing } from "@/src/theme";
+
+type PromoStrip = {
+  id: string;
+  active: boolean;
+  promo_headline?: string;
+  promo_amount?: string;
+  promo_sub?: string;
+};
 
 export default function Home() {
   const router = useRouter();
@@ -20,18 +29,21 @@ export default function Home() {
   const cartActions = useCartActions();
   const [cats, setCats] = useState<Category[]>([]);
   const [featured, setFeatured] = useState<Product[]>([]);
+  const [promo, setPromo] = useState<PromoStrip | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = async () => {
     try {
-      const [catList, prods] = await Promise.all([
+      const [catList, prods, promoRes] = await Promise.all([
         api.get<Category[]>("/categories"),
         api.get<Product[]>("/products?limit=20"),
+        api.get<{ promo_strip: PromoStrip | null }>("/offers/promo-strip").catch(() => ({ promo_strip: null })),
       ]);
       setCats(catList);
       setFeatured(prods);
+      setPromo(promoRes?.promo_strip || null);
       try {
         const cart = await api.get<{ items: Array<{ product_id: string; qty: number }>; count: number }>("/cart", true);
         applyCart(cart.items, cart.count);
@@ -104,6 +116,14 @@ export default function Home() {
         ListHeaderComponent={
           <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
             <OffersCarousel testID="home-offers-carousel" />
+            {promo && promo.active && (promo.promo_headline || promo.promo_amount || promo.promo_sub) ? (
+              <AnimatedPromoBanner
+                headline={promo.promo_headline || t("promo_headline")}
+                amount={promo.promo_amount || ""}
+                sub={promo.promo_sub || ""}
+                testID="home-promo-banner"
+              />
+            ) : null}
             <Text style={styles.sectionTitle}>{t("shop_by_category")}</Text>
             <Text style={styles.sectionSub}>{t("select_category")}</Text>
             <View style={styles.catGrid}>

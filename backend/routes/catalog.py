@@ -20,9 +20,9 @@ async def health():
 @router.get("/banner", response_model=BannerOut)
 async def get_banner():
     return BannerOut(
-        message="Free delivery on orders over 1500 L · Cash on delivery available",
-        free_delivery_min=1500.0,
-        delivery_fee=99.0,
+        message="Free delivery on orders over 2000 L · Cash on delivery available",
+        free_delivery_min=2000.0,
+        delivery_fee=200.0,
     )
 
 

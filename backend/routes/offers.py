@@ -10,6 +10,7 @@ from config import JWT_ALGO, JWT_SECRET
 from models import CouponValidateIn
 from services.offers import (
     active_category_discount,
+    get_active_promo_strip,
     list_active_banners,
     list_active_category_discounts,
     validate_coupon,
@@ -33,6 +34,13 @@ def _optional_user_id(authorization: Optional[str]) -> Optional[str]:
 async def get_active_banners(limit: int = Query(10, ge=1, le=20)):
     banners = await list_active_banners(limit=limit)
     return {"banners": banners, "count": len(banners)}
+
+
+@router.get("/promo-strip")
+async def get_promo_strip_endpoint():
+    """Return the single active promo strip, or {"promo_strip": null}."""
+    strip = await get_active_promo_strip()
+    return {"promo_strip": strip}
 
 
 @router.get("/category-discounts")

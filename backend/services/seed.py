@@ -182,3 +182,20 @@ async def seed_all():
         ]
         await db.offers.insert_many(samples)
         logger.info("Seeded %d sample offers", len(samples))
+
+    # Idempotent promo_strip seed — create a default one if none exists yet.
+    if await db.offers.count_documents({"type": "promo_strip"}) == 0:
+        now = datetime.now(timezone.utc).isoformat()
+        await db.offers.insert_one({
+            "id": "off-promo-strip-default",
+            "type": "promo_strip",
+            "title": "Free shipping ribbon",
+            "description": "Home-screen promo strip",
+            "active": True,
+            "priority": 100,
+            "promo_headline": "FREE shipping",
+            "promo_amount": "2000 L",
+            "promo_sub": "Cash on delivery available",
+            "created_at": now, "updated_at": now,
+        })
+        logger.info("Seeded default promo_strip offer")

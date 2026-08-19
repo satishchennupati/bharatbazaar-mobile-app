@@ -39,6 +39,8 @@ async def enrich_cart(cart: dict) -> dict:
             "image_emoji": p["image_emoji"],
             "image_url": p.get("image_url"),
             "unit": p["unit"],
+            "weight": p.get("weight"),
+            "weight_grams": p.get("weight_grams") or 0,
             "price_lek": p["price_lek"],
             "price_eur": p["price_eur"],
             "category_slug": p.get("category_slug"),

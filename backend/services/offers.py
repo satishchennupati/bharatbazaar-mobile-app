@@ -58,6 +58,22 @@ async def list_active_banners(limit: int = 10) -> list[dict]:
     return banners
 
 
+async def get_active_promo_strip() -> Optional[dict]:
+    """Return the highest-priority active `promo_strip` offer, or None.
+
+    Only one promo strip is ever shown at a time — if multiple are active,
+    the one with the highest `priority` wins (ties broken by title).
+    """
+    cursor = db.offers.find({"type": "promo_strip"}, {"_id": 0}).sort([
+        ("priority", -1),
+        ("title", 1),
+    ])
+    async for off in cursor:
+        if offer_is_active_now(off):
+            return off
+    return None
+
+
 async def active_category_discount(category_slug: str) -> Optional[dict]:
     """Return the highest-percent active category discount for a slug, or None."""
     cursor = db.offers.find(
