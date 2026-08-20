@@ -152,8 +152,8 @@ async def seed_all():
             {
                 "id": "off-freeship",
                 "type": "banner",
-                "title": "Free shipping over 1500 L",
-                "description": "Enjoy free delivery on orders above 1500 L.",
+                "title": "Free shipping over 2000 L",
+                "description": "Enjoy free delivery on orders above 2000 L.",
                 "active": True,
                 "priority": 90,
                 "banner_bg_color": "#0F9D58",

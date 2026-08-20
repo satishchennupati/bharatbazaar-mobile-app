@@ -11,8 +11,7 @@ import { api, resolveImageUrl, type Cart } from "@/src/lib/api";
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { colors, radius, spacing } from "@/src/theme";
 
-const FREE_MIN_LEK = 1500;
-const DELIVERY_FEE_LEK = 99;
+const FREE_MIN_LEK = 2000;
 const LEK_PER_EUR = 100;
 
 export default function CartScreen() {
@@ -135,12 +134,14 @@ export default function CartScreen() {
 
   const couponDiscountLek = appliedCoupon?.discount_lek || 0;
   const couponDiscountEur = couponDiscountLek / LEK_PER_EUR;
-  const isFree = subLek - couponDiscountLek >= FREE_MIN_LEK;
-  const feeLek = isFree ? 0 : DELIVERY_FEE_LEK;
-  const feeEur = isFree ? 0 : DELIVERY_FEE_LEK / LEK_PER_EUR;
-  const totalLek = Math.max(0, subLek - couponDiscountLek) + feeLek;
-  const totalEur = Math.max(0, subEur - couponDiscountEur) + feeEur;
-  const needForFree = Math.max(0, FREE_MIN_LEK - (subLek - couponDiscountLek));
+  // The exact delivery fee is calculated at checkout (depends on the delivery
+  // address zone and cart weight). Here we only surface the free-shipping
+  // threshold so users know how close they are to unlocking it.
+  const netSubLek = subLek - couponDiscountLek;
+  const isFree = netSubLek >= FREE_MIN_LEK;
+  const totalLek = Math.max(0, netSubLek);
+  const totalEur = Math.max(0, subEur - couponDiscountEur);
+  const needForFree = Math.max(0, FREE_MIN_LEK - netSubLek);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -274,8 +275,8 @@ export default function CartScreen() {
             )}
             <Row
               label={t("delivery_fee")}
-              value={isFree ? t("free") : formatPrice(feeLek, feeEur, currency)}
-              valueColor={isFree ? colors.success : colors.textMain}
+              value={isFree ? t("free") : "At checkout"}
+              valueColor={isFree ? colors.success : colors.textMuted}
             />
             <View style={styles.divider} />
             <Row label={t("total")} value={formatPrice(totalLek, totalEur, currency)} bold />
