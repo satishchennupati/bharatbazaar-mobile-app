@@ -22,15 +22,62 @@ def _parse_google_address_components(components: list) -> dict:
             parts["state"] = comp.get("long_name")
         if "administrative_area_level_2" in types:
             parts.setdefault("city", comp.get("long_name"))
+        if "administrative_area_level_3" in types:
+            # Often the "sub-district" or lagje — good area fallback.
+            parts.setdefault("area", comp.get("long_name"))
         if "locality" in types:
             parts["city"] = comp.get("long_name")
         if "sublocality" in types or "sublocality_level_1" in types or "neighborhood" in types:
-            parts.setdefault("area", comp.get("long_name"))
+            # Prefer sublocality over admin_area_3.
+            parts["area"] = comp.get("long_name")
+        if "sublocality_level_2" in types:
+            parts.setdefault("landmark", comp.get("long_name"))
         if "route" in types:
             parts.setdefault("street", comp.get("long_name"))
         if "street_number" in types:
             parts["street_number"] = comp.get("long_name")
+        if "premise" in types or "point_of_interest" in types:
+            parts.setdefault("landmark", comp.get("long_name"))
+        if "establishment" in types:
+            parts.setdefault("landmark", comp.get("long_name"))
     return parts
+
+
+def _derive_area_and_landmark_from_formatted(
+    formatted: str, city: str, area: str, landmark: str
+) -> tuple[str, str]:
+    """When Google's components are sparse, use the formatted_address parts.
+
+    Formatted addresses in Albania typically look like:
+        "Rr. XYZ, Nr. 12, Tirana 1001, Albania"
+        "Kombinat, Tirana, Albania"
+    We keep the middle segments (not first line1, not last city/country) as
+    additional area/landmark fallbacks so the user sees meaningful data.
+    """
+    if not formatted:
+        return area, landmark
+    parts = [p.strip() for p in formatted.split(",") if p.strip()]
+    # Drop leading line1 & trailing country + city (if they appear at end).
+    middle = parts[1:-1] if len(parts) >= 3 else []
+    # Filter out fragments that are just the city name or repeat the area.
+    city_low = (city or "").lower()
+    area_low = (area or "").lower()
+    middle = [
+        m for m in middle
+        if m.lower() != city_low
+        and not m.lower().startswith(city_low + " ")  # "Tirana 1001"
+        and (not area_low or m.lower() != area_low)
+    ]
+    if not area and middle:
+        area = middle[0]
+        middle = middle[1:]
+    if not landmark and middle:
+        # Skip any leftover fragment that matches the (now-set) area.
+        for m in middle:
+            if m.lower() != (area or "").lower():
+                landmark = m
+                break
+    return area, landmark
 
 
 @router.get("/autocomplete")
@@ -67,7 +114,7 @@ async def geo_place_details(place_id: str = Query(...)):
     params = {
         "place_id": place_id,
         "key": GOOGLE_MAPS_API_KEY,
-        "fields": "formatted_address,geometry/location,address_components,name",
+        "fields": "formatted_address,geometry/location,address_components,name,types",
         "language": "en",
     }
     async with httpx.AsyncClient(timeout=15.0) as client:
@@ -79,6 +126,20 @@ async def geo_place_details(place_id: str = Query(...)):
     loc = ((result.get("geometry") or {}).get("location") or {})
     parsed = _parse_google_address_components(result.get("address_components", []))
     line1 = " ".join([p for p in [parsed.get("street_number"), parsed.get("street")] if p]) or (result.get("name") or "")
+    # If the place itself is a business/POI (e.g. "Pyramid of Tirana"), also
+    # surface its name as a landmark hint.
+    result_types = result.get("types") or []
+    landmark = parsed.get("landmark", "") or ""
+    if not landmark and result.get("name") and (
+        "establishment" in result_types
+        or "point_of_interest" in result_types
+        or "premise" in result_types
+    ):
+        landmark = result["name"]
+    area = parsed.get("area", "") or ""
+    area, landmark = _derive_area_and_landmark_from_formatted(
+        result.get("formatted_address") or "", parsed.get("city") or "", area, landmark
+    )
     serviceable = parsed["country_code"] in SERVICEABLE_COUNTRY_CODES
     return {
         "place_id": place_id,
@@ -89,7 +150,8 @@ async def geo_place_details(place_id: str = Query(...)):
         "country": parsed.get("country"),
         "state": parsed.get("state", ""),
         "city": parsed.get("city"),
-        "area": parsed.get("area", ""),
+        "area": area,
+        "landmark": landmark,
         "postal_code": parsed.get("postal_code", ""),
         "line1": line1,
         "serviceable": serviceable,
@@ -114,7 +176,7 @@ async def geo_reverse_geocode(lat: float = Query(...), lng: float = Query(...)):
             "formatted_address": f"{lat:.5f}, {lng:.5f}",
             "lat": lat, "lng": lng,
             "country_code": None, "country": "",
-            "state": "", "city": "", "area": "", "postal_code": "", "line1": "",
+            "state": "", "city": "", "area": "", "landmark": "", "postal_code": "", "line1": "",
             "serviceable": False,
             "unserviceable_reason": "No address found for this location.",
         }
@@ -126,13 +188,25 @@ async def geo_reverse_geocode(lat: float = Query(...), lng: float = Query(...)):
     line1 = " ".join([p for p in [parsed.get("street_number"), parsed.get("street")] if p])
     if not line1 and best.get("formatted_address"):
         line1 = best["formatted_address"].split(",")[0].strip()
-    area = parsed.get("area", "")
-    if not area and best.get("formatted_address"):
-        parts = [p.strip() for p in best["formatted_address"].split(",")]
-        for frag in parts[1:-1]:
-            if frag and frag.lower() != (parsed.get("city") or "").lower():
-                area = frag
+    area = parsed.get("area", "") or ""
+    landmark = parsed.get("landmark", "") or ""
+    # Also mine any nearby POI in the geocode results as a landmark hint.
+    if not landmark:
+        for res in results:
+            types = res.get("types") or []
+            if "point_of_interest" in types or "establishment" in types:
+                for comp in res.get("address_components") or []:
+                    ctypes = comp.get("types") or []
+                    if "point_of_interest" in ctypes or "establishment" in ctypes:
+                        landmark = comp.get("long_name") or ""
+                        if landmark:
+                            break
+            if landmark:
                 break
+    # Fallback: parse formatted_address for area / landmark hints.
+    area, landmark = _derive_area_and_landmark_from_formatted(
+        best.get("formatted_address") or "", parsed.get("city") or "", area, landmark
+    )
     serviceable = parsed["country_code"] in SERVICEABLE_COUNTRY_CODES
     return {
         "place_id": best.get("place_id"),
@@ -143,6 +217,7 @@ async def geo_reverse_geocode(lat: float = Query(...), lng: float = Query(...)):
         "state": parsed.get("state", ""),
         "city": parsed.get("city", ""),
         "area": area,
+        "landmark": landmark,
         "postal_code": parsed.get("postal_code", ""),
         "line1": line1,
         "serviceable": serviceable,

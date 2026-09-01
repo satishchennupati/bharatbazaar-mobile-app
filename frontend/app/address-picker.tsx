@@ -246,6 +246,7 @@ export default function AddressPicker() {
   // so users can visually confirm the auto-fill worked and tweak if needed.
   const [line1Edit, setLine1Edit] = useState("");
   const [areaEdit, setAreaEdit] = useState("");
+  const [landmarkEdit, setLandmarkEdit] = useState("");
   const [cityEdit, setCityEdit] = useState("");
   const [stateEdit, setStateEdit] = useState("");
   const [postalEdit, setPostalEdit] = useState("");
@@ -254,6 +255,7 @@ export default function AddressPicker() {
     if (!selected) return;
     setLine1Edit(selected.line1 || selected.formatted_address?.split(",")[0] || "");
     setAreaEdit(selected.area || "");
+    setLandmarkEdit((selected as any).landmark || "");
     setCityEdit(selected.city || "");
     setStateEdit(selected.state || "");
     setPostalEdit(selected.postal_code || "");
@@ -267,6 +269,7 @@ export default function AddressPicker() {
       ...selected,
       line1: line1Edit.trim() || selected.line1,
       area: areaEdit.trim() || selected.area,
+      landmark: landmarkEdit.trim() || (selected as any).landmark || "",
       city: cityEdit.trim() || selected.city,
       state: stateEdit.trim() || selected.state,
       postal_code: postalEdit.trim() || selected.postal_code,
@@ -380,6 +383,17 @@ export default function AddressPicker() {
                     placeholderTextColor={colors.textDisabled}
                     style={styles.fieldInput}
                     testID="addr-area-input"
+                  />
+                </View>
+                <View style={styles.fieldFull}>
+                  <Text style={styles.fieldLabel}>Landmark (Pranë / Afër)</Text>
+                  <TextInput
+                    value={landmarkEdit}
+                    onChangeText={setLandmarkEdit}
+                    placeholder="e.g. near pharmacy, opposite school"
+                    placeholderTextColor={colors.textDisabled}
+                    style={styles.fieldInput}
+                    testID="addr-landmark-input"
                   />
                 </View>
                 <View style={styles.fieldHalf}>

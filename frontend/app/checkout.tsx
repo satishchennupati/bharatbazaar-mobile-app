@@ -93,9 +93,13 @@ export default function Checkout() {
       // Area (Lagje): Google returns sublocality/neighborhood if available;
       // otherwise the backend derives it from the formatted address.
       setArea(selectedAddress.area || "");
+      // Landmark: Google POI / establishment name, or a fragment of formatted_address.
+      setLandmark((selectedAddress as any).landmark || "");
       // line1 (street + number) is stored for the order payload.
       setLine1(selectedAddress.line1 || selectedAddress.formatted_address || "");
       setPostal(selectedAddress.postal_code || "");
+      // Default phone to the account's phone (users can override).
+      if (!phone && user?.phone) setPhone(user.phone);
       return;
     }
     const saved = user?.addresses?.[0] as any;
@@ -112,6 +116,7 @@ export default function Checkout() {
       setPhone(saved.phone || user?.phone || "");
       setWhatsapp(saved.whatsapp || "");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, selectedAddress]);
 
   useEffect(() => {

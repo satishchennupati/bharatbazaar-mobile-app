@@ -63,6 +63,7 @@ export type SelectedAddress = {
   city: string;
   state: string;
   area: string;
+  landmark: string;
   postal_code: string;
   country: string;
   country_code: string;
