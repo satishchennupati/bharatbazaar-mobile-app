@@ -140,6 +140,14 @@ async def geo_place_details(place_id: str = Query(...)):
     area, landmark = _derive_area_and_landmark_from_formatted(
         result.get("formatted_address") or "", parsed.get("city") or "", area, landmark
     )
+    # Last-mile Places Nearby fallback for area / landmark when Google's
+    # component data is thin (very common in Albania).
+    if (not landmark or not area) and loc.get("lat") and loc.get("lng"):
+        nb_area, nb_landmark = await _nearby_landmark_lookup(loc["lat"], loc["lng"])
+        if not landmark and nb_landmark:
+            landmark = nb_landmark
+        if not area and nb_area:
+            area = nb_area
     serviceable = parsed["country_code"] in SERVICEABLE_COUNTRY_CODES
     return {
         "place_id": place_id,
@@ -207,6 +215,16 @@ async def geo_reverse_geocode(lat: float = Query(...), lng: float = Query(...)):
     area, landmark = _derive_area_and_landmark_from_formatted(
         best.get("formatted_address") or "", parsed.get("city") or "", area, landmark
     )
+    # Last-mile fallback: if we STILL don't have area or landmark, ping Google's
+    # Places Nearby Search to find a real business/POI/premise within ~150 m of
+    # the pin. This gives customers a meaningful "Landmark" like "Kafe Blloku"
+    # or "Farmacia XY" instead of an empty field.
+    if not landmark or not area:
+        nb_area, nb_landmark = await _nearby_landmark_lookup(lat, lng)
+        if not landmark and nb_landmark:
+            landmark = nb_landmark
+        if not area and nb_area:
+            area = nb_area
     serviceable = parsed["country_code"] in SERVICEABLE_COUNTRY_CODES
     return {
         "place_id": best.get("place_id"),
@@ -223,6 +241,66 @@ async def geo_reverse_geocode(lat: float = Query(...), lng: float = Query(...)):
         "serviceable": serviceable,
         "unserviceable_reason": None if serviceable else "We currently deliver only within Albania.",
     }
+
+
+async def _nearby_landmark_lookup(lat: float, lng: float) -> tuple[str, str]:
+    """Query Google Places Nearby Search for a landmark near the given pin.
+
+    Returns (area_fallback, landmark_fallback). Both may be empty if nothing
+    useful is nearby. We prefer establishments/POIs for landmark, and use the
+    nearest establishment's vicinity/area for area if it's meaningful.
+
+    Uses a 150 m radius — small enough that the POI genuinely represents the
+    pin, big enough to catch a shop / cafe / pharmacy across the street.
+    """
+    if not GOOGLE_MAPS_API_KEY:
+        return "", ""
+    params = {
+        "location": f"{lat},{lng}",
+        "radius": 150,
+        "key": GOOGLE_MAPS_API_KEY,
+        "language": "en",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(
+                "https://maps.googleapis.com/maps/api/place/nearbysearch/json",
+                params=params,
+            )
+        if r.status_code != 200:
+            return "", ""
+        data = r.json()
+        candidates = data.get("results") or []
+        # Prefer businesses/POIs over generic "political" results.
+        priority = ("point_of_interest", "establishment", "premise",
+                    "store", "food", "restaurant", "pharmacy", "school", "hospital")
+        candidates.sort(
+            key=lambda c: (
+                -sum(1 for t in (c.get("types") or []) if t in priority),
+                # Then by nearest (Google already returns sorted by rank, but
+                # keep it stable if we resort).
+            )
+        )
+        for cand in candidates:
+            name = (cand.get("name") or "").strip()
+            types = cand.get("types") or []
+            if not name:
+                continue
+            if "locality" in types or "political" in types or "country" in types:
+                # Skip pure administrative results.
+                continue
+            vicinity = (cand.get("vicinity") or "").strip()
+            # Return the POI as landmark. Try to derive an "area" from vicinity
+            # (typically "Street name, Area").
+            area_guess = ""
+            if vicinity:
+                v_parts = [p.strip() for p in vicinity.split(",")]
+                if len(v_parts) >= 2:
+                    area_guess = v_parts[-1]  # last chunk is usually the neighborhood/area
+            return area_guess, name
+        return "", ""
+    except Exception:
+        return "", ""
 
 
 @router.get("/map-picker")
