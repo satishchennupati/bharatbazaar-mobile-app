@@ -11,8 +11,8 @@
  * autocomplete suggestion, so both interactions stay in sync.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
@@ -126,6 +126,7 @@ const MapPicker = Platform.OS === "web" ? MapPickerWeb : MapPickerNative;
 // -----------------------------------------------------------------------------
 export default function AddressPicker() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { setSelectedAddress } = useApp();
 
   const [query, setQuery] = useState("");
@@ -242,44 +243,17 @@ export default function AddressPicker() {
 
   const isServiceable = !!(selected && selected.serviceable);
 
-  // Editable form fields — pre-populated whenever a new location is resolved,
-  // so users can visually confirm the auto-fill worked and tweak if needed.
-  const [line1Edit, setLine1Edit] = useState("");
-  const [areaEdit, setAreaEdit] = useState("");
-  const [landmarkEdit, setLandmarkEdit] = useState("");
-  const [cityEdit, setCityEdit] = useState("");
-  const [stateEdit, setStateEdit] = useState("");
-  const [postalEdit, setPostalEdit] = useState("");
-
-  useEffect(() => {
-    if (!selected) return;
-    setLine1Edit(selected.line1 || selected.formatted_address?.split(",")[0] || "");
-    setAreaEdit(selected.area || "");
-    setLandmarkEdit((selected as any).landmark || "");
-    setCityEdit(selected.city || "");
-    setStateEdit(selected.state || "");
-    setPostalEdit(selected.postal_code || "");
-  }, [selected]);
-
   const onConfirm = () => {
     if (!selected || !isServiceable) return;
-    // Merge any manual edits back into the SelectedAddress payload before
-    // handing off to the checkout screen.
-    const merged: SelectedAddress = {
-      ...selected,
-      line1: line1Edit.trim() || selected.line1,
-      area: areaEdit.trim() || selected.area,
-      landmark: landmarkEdit.trim() || (selected as any).landmark || "",
-      city: cityEdit.trim() || selected.city,
-      state: stateEdit.trim() || selected.state,
-      postal_code: postalEdit.trim() || selected.postal_code,
-    };
-    setSelectedAddress(merged);
+    // Send the resolved address back to the checkout screen exactly as Google
+    // returned it — the checkout page owns editing (fields there are shared
+    // with the manual entry mode) so we don't duplicate them here.
+    setSelectedAddress(selected);
     router.back();
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.back} testID="addr-back">
           <Ionicons name="chevron-back" size={24} color={colors.textMain} />
@@ -328,22 +302,15 @@ export default function AddressPicker() {
         )}
       </View>
 
-      {/* Interactive map fills the rest of the screen */}
+      {/* Interactive map — dominates the screen for tap-and-drag comfort. */}
       <View style={styles.mapArea} testID="map-picker-area">
         <MapPicker initial={ALBANIA_CENTER} onPin={onPin} flyTo={flyTo} />
       </View>
 
-      {/* Bottom sheet with resolved address + confirm.
-          Layout: address summary + fields scroll INSIDE the sheet; the
-          "Use this address" button is anchored at the bottom OUTSIDE the
-          scroll view so it's always visible regardless of content height. */}
-      <View style={styles.bottomSheet}>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.sm }}
-          showsVerticalScrollIndicator={false}
-          style={styles.sheetScroll}
-        >
+      {/* Compact bottom sheet: address summary + lat/lng read-outs + CTA.
+          Editable fields live on the previous screen (Checkout) since they
+          are shared with the "Enter manually" flow. */}
+      <View style={[styles.bottomSheet, { paddingBottom: Math.max(spacing.lg, insets.bottom + 8) }]}>
         {resolving ? (
           <View style={styles.resolvingRow}>
             <ActivityIndicator size="small" color={colors.primary} />
@@ -365,77 +332,30 @@ export default function AddressPicker() {
               </View>
             </View>
 
-            {isServiceable && (
-              <View style={styles.fieldsGrid} testID="addr-editable-fields">
-                <View style={styles.fieldFull}>
-                  <Text style={styles.fieldLabel}>Street / House</Text>
-                  <TextInput
-                    value={line1Edit}
-                    onChangeText={setLine1Edit}
-                    placeholder="Street & house number"
-                    placeholderTextColor={colors.textDisabled}
-                    style={styles.fieldInput}
-                    testID="addr-line1-input"
-                  />
-                </View>
-                <View style={styles.fieldFull}>
-                  <Text style={styles.fieldLabel}>Area / Neighborhood</Text>
-                  <TextInput
-                    value={areaEdit}
-                    onChangeText={setAreaEdit}
-                    placeholder="Lagje / Zone"
-                    placeholderTextColor={colors.textDisabled}
-                    style={styles.fieldInput}
-                    testID="addr-area-input"
-                  />
-                </View>
-                <View style={styles.fieldFull}>
-                  <Text style={styles.fieldLabel}>Landmark (Pranë / Afër)</Text>
-                  <TextInput
-                    value={landmarkEdit}
-                    onChangeText={setLandmarkEdit}
-                    placeholder="e.g. near pharmacy, opposite school"
-                    placeholderTextColor={colors.textDisabled}
-                    style={styles.fieldInput}
-                    testID="addr-landmark-input"
-                  />
-                </View>
-                <View style={styles.fieldHalf}>
-                  <Text style={styles.fieldLabel}>City</Text>
-                  <TextInput
-                    value={cityEdit}
-                    onChangeText={setCityEdit}
-                    placeholder="City"
-                    placeholderTextColor={colors.textDisabled}
-                    style={styles.fieldInput}
-                    testID="addr-city-input"
-                  />
-                </View>
-                <View style={styles.fieldHalf}>
-                  <Text style={styles.fieldLabel}>State / Qark</Text>
-                  <TextInput
-                    value={stateEdit}
-                    onChangeText={setStateEdit}
-                    placeholder="Qark"
-                    placeholderTextColor={colors.textDisabled}
-                    style={styles.fieldInput}
-                    testID="addr-state-input"
-                  />
-                </View>
-                <View style={styles.fieldHalf}>
-                  <Text style={styles.fieldLabel}>Postal code (optional)</Text>
-                  <TextInput
-                    value={postalEdit}
-                    onChangeText={setPostalEdit}
-                    placeholder="1001"
-                    placeholderTextColor={colors.textDisabled}
-                    keyboardType="number-pad"
-                    style={styles.fieldInput}
-                    testID="addr-postal-input"
-                  />
-                </View>
+            {/* Coordinates read-out (read-only). Shown side-by-side so drivers
+                or admins can copy them from screenshots if needed. */}
+            <View style={styles.coordRow}>
+              <View style={styles.coordBox}>
+                <Text style={styles.coordLabel}>LATITUDE</Text>
+                <TextInput
+                  value={selected.lat ? selected.lat.toFixed(6) : ""}
+                  editable={false}
+                  selectTextOnFocus
+                  style={styles.coordInput}
+                  testID="addr-lat-input"
+                />
               </View>
-            )}
+              <View style={styles.coordBox}>
+                <Text style={styles.coordLabel}>LONGITUDE</Text>
+                <TextInput
+                  value={selected.lng ? selected.lng.toFixed(6) : ""}
+                  editable={false}
+                  selectTextOnFocus
+                  style={styles.coordInput}
+                  testID="addr-lng-input"
+                />
+              </View>
+            </View>
 
             {!isServiceable && (
               <View style={styles.errorBox} testID="addr-unserviceable">
@@ -453,7 +373,6 @@ export default function AddressPicker() {
             <Text style={styles.hintText}>Drag the map to place the pin, or search above</Text>
           </View>
         )}
-        </ScrollView>
         <Pressable
           onPress={onConfirm}
           disabled={!isServiceable}
@@ -519,45 +438,40 @@ const styles = StyleSheet.create({
   },
   suggMain: { fontSize: 14, fontWeight: "600", color: colors.textMain },
   suggSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  mapArea: { flex: 1, backgroundColor: colors.surfaceMuted, minHeight: 200 },
+  mapArea: { flex: 1, backgroundColor: colors.surfaceMuted, minHeight: 260 },
   bottomSheet: {
     padding: spacing.lg,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     gap: spacing.sm,
-    // Cap the sheet at ~half the screen so the map remains usable and the
-    // CTA below never gets pushed off-screen.
-    maxHeight: "58%",
   },
-  sheetScroll: {
-    flexGrow: 0,
-    flexShrink: 1,
-  },
-  fieldsGrid: {
+  coordRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: 8,
   },
-  fieldFull: { width: "100%" },
-  fieldHalf: { flexBasis: "48%", flexGrow: 1 },
-  fieldLabel: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: colors.textMuted,
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-    marginBottom: 4,
-  },
-  fieldInput: {
-    backgroundColor: colors.background,
+  coordBox: {
+    flex: 1,
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: 10,
-    paddingVertical: Platform.OS === "ios" ? 10 : 8,
+    paddingVertical: 8,
+  },
+  coordLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: colors.textMuted,
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  coordInput: {
     fontSize: 13,
     color: colors.textMain,
+    fontWeight: "600",
+    padding: 0,
+    minHeight: 18,
   },
   resolvingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   resolvingText: { fontSize: 13, color: colors.textMuted, fontWeight: "600" },

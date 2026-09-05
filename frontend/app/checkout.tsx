@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -36,6 +36,7 @@ type EntryMode = "manual" | "map";
 
 export default function Checkout() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { t, currency, user, setCartCount, refreshUser, selectedAddress, appliedCoupon, setAppliedCoupon } = useApp();
   const [cart, setCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(true);
@@ -291,7 +292,7 @@ export default function Checkout() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.headerBar}>
         <Pressable onPress={() => router.back()} style={styles.back} testID="checkout-back">
           <Ionicons name="chevron-back" size={24} color={colors.textMain} />
@@ -300,7 +301,7 @@ export default function Checkout() {
       </View>
 
       <KeyboardAwareScrollView
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 180 }}
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 180 + insets.bottom }}
         bottomOffset={20}
         keyboardShouldPersistTaps="handled"
       >
@@ -343,21 +344,21 @@ export default function Checkout() {
           </View>
         )}
 
-        {/* Segmented control: Manual / Map */}
+        {/* Segmented control: Map / Manual (Pick on map first per user preference) */}
         <View style={styles.segment}>
-          <SegmentTab
-            label={t("enter_manually")}
-            icon="create-outline"
-            active={entryMode === "manual"}
-            onPress={() => setEntryMode("manual")}
-            testID="seg-manual"
-          />
           <SegmentTab
             label={t("pick_on_map")}
             icon="location-outline"
             active={entryMode === "map"}
             onPress={() => setEntryMode("map")}
             testID="seg-map"
+          />
+          <SegmentTab
+            label={t("enter_manually")}
+            icon="create-outline"
+            active={entryMode === "manual"}
+            onPress={() => setEntryMode("manual")}
+            testID="seg-manual"
           />
         </View>
 
@@ -610,7 +611,7 @@ export default function Checkout() {
         {error && <Text style={styles.error}>{error}</Text>}
       </KeyboardAwareScrollView>
 
-      <View style={styles.footerBar}>
+      <View style={[styles.footerBar, { paddingBottom: Math.max(spacing.lg, insets.bottom + 8) }]}>
         <Pressable
           onPress={placeOrder}
           disabled={submitting}
