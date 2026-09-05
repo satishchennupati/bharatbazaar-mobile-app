@@ -330,15 +330,17 @@ async def geo_map_picker_page(
     }}
     .center-pin svg {{ display: block; }}
     .hint {{
-      position: fixed; bottom: 12px; left: 12px; right: 68px;
+      position: fixed; bottom: 12px; left: 12px; right: 12px;
       background: rgba(255,255,255,0.95); border-radius: 12px;
       padding: 10px 14px; font-size: 13px; color: #333;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15); text-align: center;
       z-index: 1000; font-weight: 600;
     }}
     .locate-btn {{
-      position: fixed; bottom: 12px; right: 12px;
-      width: 48px; height: 48px; border-radius: 24px;
+      /* Top-right of the map so we don't collide with Google's default
+         zoom +/− controls in the bottom-right corner. */
+      position: fixed; top: 12px; right: 12px;
+      width: 44px; height: 44px; border-radius: 22px;
       background: #fff; border: none;
       display: flex; align-items: center; justify-content: center;
       box-shadow: 0 2px 8px rgba(0,0,0,0.25);

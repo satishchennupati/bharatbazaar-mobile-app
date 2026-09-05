@@ -333,12 +333,16 @@ export default function AddressPicker() {
         <MapPicker initial={ALBANIA_CENTER} onPin={onPin} flyTo={flyTo} />
       </View>
 
-      {/* Bottom sheet with resolved address + confirm */}
+      {/* Bottom sheet with resolved address + confirm.
+          Layout: address summary + fields scroll INSIDE the sheet; the
+          "Use this address" button is anchored at the bottom OUTSIDE the
+          scroll view so it's always visible regardless of content height. */}
       <View style={styles.bottomSheet}>
         <ScrollView
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ gap: spacing.md }}
+          contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.sm }}
           showsVerticalScrollIndicator={false}
+          style={styles.sheetScroll}
         >
         {resolving ? (
           <View style={styles.resolvingRow}>
@@ -449,6 +453,7 @@ export default function AddressPicker() {
             <Text style={styles.hintText}>Drag the map to place the pin, or search above</Text>
           </View>
         )}
+        </ScrollView>
         <Pressable
           onPress={onConfirm}
           disabled={!isServiceable}
@@ -457,7 +462,6 @@ export default function AddressPicker() {
         >
           <Text style={styles.ctaText}>{isServiceable ? "Use this address" : "Not serviceable"}</Text>
         </Pressable>
-        </ScrollView>
       </View>
     </SafeAreaView>
   );
@@ -515,14 +519,20 @@ const styles = StyleSheet.create({
   },
   suggMain: { fontSize: 14, fontWeight: "600", color: colors.textMain },
   suggSub: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  mapArea: { flex: 1, backgroundColor: colors.surfaceMuted, minHeight: 220 },
+  mapArea: { flex: 1, backgroundColor: colors.surfaceMuted, minHeight: 200 },
   bottomSheet: {
     padding: spacing.lg,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    gap: spacing.md,
-    maxHeight: 460,
+    gap: spacing.sm,
+    // Cap the sheet at ~half the screen so the map remains usable and the
+    // CTA below never gets pushed off-screen.
+    maxHeight: "58%",
+  },
+  sheetScroll: {
+    flexGrow: 0,
+    flexShrink: 1,
   },
   fieldsGrid: {
     flexDirection: "row",
@@ -570,6 +580,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     paddingVertical: 15,
     alignItems: "center",
+    marginTop: spacing.sm,
   },
   ctaDisabled: { backgroundColor: colors.textDisabled },
   ctaText: { color: "#fff", fontWeight: "700", fontSize: 16 },

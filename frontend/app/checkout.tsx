@@ -265,9 +265,12 @@ export default function Checkout() {
       const shouldSave = saveAddress && !selectedSavedId;
       if (shouldSave || !user?.addresses || user.addresses.length === 0) {
         try {
-          const addr = await api.post<any>("/me/addresses", addressPayload);
+          const addr = await api.post<any>("/me/addresses", addressPayload, true);
           if (user) await refreshUser({ ...user, addresses: [...(user.addresses || []), addr] });
-        } catch {}
+        } catch (e) {
+          // Non-fatal — the order was placed, we just failed to persist the address.
+          console.warn("Failed to save address to profile:", e);
+        }
       }
       setCartCount(0);
       setAppliedCoupon(null);
