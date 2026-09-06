@@ -75,6 +75,27 @@ async def update_address(addr_id: str, addr: AddressIn, user: dict = Depends(get
     return addr_doc
 
 
+@router.post("/me/addresses/{addr_id}/touch")
+async def touch_address(addr_id: str, user: dict = Depends(get_current_user)):
+    """Move a saved address to the end of the array (most-recently-used).
+
+    Called by the checkout flow after an order is placed with an existing
+    saved address so that "most recent" on the next visit is really the one
+    the customer just used, not merely the last one they created.
+    """
+    u = await db.users.find_one({"id": user["id"]}, {"addresses": 1})
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    addrs = list(u.get("addresses") or [])
+    target = next((a for a in addrs if a.get("id") == addr_id), None)
+    if not target:
+        raise HTTPException(status_code=404, detail="Address not found")
+    others = [a for a in addrs if a.get("id") != addr_id]
+    others.append(target)
+    await db.users.update_one({"id": user["id"]}, {"$set": {"addresses": others}})
+    return {"ok": True, "addresses": others}
+
+
 @router.delete("/me/addresses/{addr_id}")
 async def remove_address(addr_id: str, user: dict = Depends(get_current_user)):
     await db.users.update_one({"id": user["id"]}, {"$pull": {"addresses": {"id": addr_id}}})

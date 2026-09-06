@@ -272,6 +272,19 @@ export default function Checkout() {
           // Non-fatal — the order was placed, we just failed to persist the address.
           console.warn("Failed to save address to profile:", e);
         }
+      } else if (selectedSavedId) {
+        // Promote the used saved address to "most-recently-used" so it shows
+        // up first on the next checkout.
+        try {
+          const res = await api.post<{ addresses: any[] }>(
+            `/me/addresses/${selectedSavedId}/touch`,
+            {},
+            true,
+          );
+          if (user && res?.addresses) await refreshUser({ ...user, addresses: res.addresses });
+        } catch {
+          /* non-fatal */
+        }
       }
       setCartCount(0);
       setAppliedCoupon(null);
@@ -307,42 +320,60 @@ export default function Checkout() {
       >
         <Text style={styles.section}>{t("delivery_address")}</Text>
 
-        {savedAddresses.length > 0 && (
-          <View style={styles.savedRow} testID="checkout-saved-addresses">
-            <View style={styles.savedHead}>
-              <Ionicons name="bookmark" size={14} color={colors.primary} />
-              <Text style={styles.savedTitle}>Saved addresses</Text>
-              <View style={{ flex: 1 }} />
-              <Pressable onPress={() => router.push("/manage-addresses")} testID="checkout-manage-addresses">
-                <Text style={styles.manageLink}>Manage</Text>
+        {savedAddresses.length > 0 && (() => {
+          // Show only the MOST RECENTLY USED saved address (the last one in
+          // the array — backend pushes to the end on create, and `touch`es to
+          // the end after an order). Rest are managed via the "Manage" link.
+          const mostRecent = savedAddresses[savedAddresses.length - 1];
+          const active = mostRecent.id && selectedSavedId === mostRecent.id;
+          const summary =
+            [mostRecent.line1, mostRecent.area, mostRecent.city].filter(Boolean).join(", ") ||
+            mostRecent.formatted_address || mostRecent.city || "Address";
+          return (
+            <View style={styles.savedRow} testID="checkout-saved-addresses">
+              <View style={styles.savedHead}>
+                <Ionicons name="bookmark" size={14} color={colors.primary} />
+                <Text style={styles.savedTitle}>Recently used</Text>
+                <View style={{ flex: 1 }} />
+                <Pressable
+                  onPress={() => router.push("/manage-addresses")}
+                  testID="checkout-manage-addresses"
+                  hitSlop={8}
+                >
+                  <Text style={styles.manageLink}>
+                    {savedAddresses.length > 1 ? `Manage (${savedAddresses.length})` : "Manage"}
+                  </Text>
+                </Pressable>
+              </View>
+              <Pressable
+                key={mostRecent.id || "recent"}
+                onPress={() => applySavedAddress(mostRecent)}
+                style={[styles.savedChip, styles.savedChipFull, active && styles.savedChipActive]}
+                testID={`checkout-saved-${mostRecent.id}`}
+              >
+                <Ionicons
+                  name={active ? "checkmark-circle" : "location-outline"}
+                  size={18}
+                  color={active ? "#fff" : colors.primary}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[styles.savedChipLabel, active && { color: "#fff" }]}
+                    numberOfLines={1}
+                  >
+                    {mostRecent.label || "Address"}
+                  </Text>
+                  <Text
+                    style={[styles.savedChipSummary, active && { color: "#fff", opacity: 0.9 }]}
+                    numberOfLines={2}
+                  >
+                    {summary}
+                  </Text>
+                </View>
               </Pressable>
             </View>
-            <View style={styles.savedChips}>
-              {savedAddresses.map((a: any) => {
-                const active = a.id && selectedSavedId === a.id;
-                const summary = [a.line1, a.area, a.city].filter(Boolean).join(", ") || a.formatted_address || a.city || "Address";
-                return (
-                  <Pressable
-                    key={a.id || Math.random()}
-                    onPress={() => applySavedAddress(a)}
-                    style={[styles.savedChip, active && styles.savedChipActive]}
-                    testID={`checkout-saved-${a.id}`}
-                  >
-                    <Ionicons name={active ? "checkmark-circle" : "location-outline"} size={14} color={active ? "#fff" : colors.primary} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.savedChipLabel, active && { color: "#fff" }]} numberOfLines={1}>
-                        {a.label || "Address"}
-                      </Text>
-                      <Text style={[styles.savedChipSummary, active && { color: "#fff", opacity: 0.9 }]} numberOfLines={1}>
-                        {summary}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        )}
+          );
+        })()}
 
         {/* Segmented control: Map / Manual (Pick on map first per user preference) */}
         <View style={styles.segment}>
@@ -919,8 +950,15 @@ const styles = StyleSheet.create({
     borderColor: colors.primaryLight,
   },
   savedChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  savedChipLabel: { fontSize: 12, fontWeight: "700", color: colors.textMain },
-  savedChipSummary: { fontSize: 11, color: colors.textMuted },
+  savedChipFull: {
+    minWidth: "100%",
+    flexBasis: "100%",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  savedChipLabel: { fontSize: 13, fontWeight: "700", color: colors.textMain },
+  savedChipSummary: { fontSize: 12, color: colors.textMuted, marginTop: 2, lineHeight: 16 },
   payOpt: {
     flexDirection: "row",
     alignItems: "center",

@@ -336,26 +336,7 @@ async def geo_map_picker_page(
       box-shadow: 0 2px 8px rgba(0,0,0,0.15); text-align: center;
       z-index: 1000; font-weight: 600;
     }}
-    .locate-btn {{
-      /* Top-right of the map so we don't collide with Google's default
-         zoom +/− controls in the bottom-right corner. */
-      position: fixed; top: 12px; right: 12px;
-      width: 44px; height: 44px; border-radius: 22px;
-      background: #fff; border: none;
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-      z-index: 1001; cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-    }}
-    .locate-btn:active {{ background: #f5f5f5; }}
-    .locate-btn.loading {{ opacity: 0.7; pointer-events: none; }}
-    .locate-btn .spinner {{
-      width: 20px; height: 20px; border-radius: 50%;
-      border: 2px solid #FF5722; border-top-color: transparent;
-      animation: spin 0.8s linear infinite;
-    }}
     @keyframes spin {{ to {{ transform: rotate(360deg); }} }}
-    .locate-btn.granted svg circle {{ fill: #FF5722; }}
     .fatal {{
       position: fixed; inset: 0; display: flex; align-items: center;
       justify-content: center; padding: 24px; text-align: center;
@@ -373,19 +354,11 @@ async def geo_map_picker_page(
     </svg>
   </div>
   <div class='hint' id='hint'>Drag the map to place the pin</div>
-  <button class='locate-btn' id='locateBtn' aria-label='Use my location' title='Use my location'>
-    <svg width='24' height='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>
-      <circle cx='12' cy='12' r='3' fill='#666'/>
-      <path d='M12 2v3M12 19v3M2 12h3M19 12h3M12 6a6 6 0 100 12 6 6 0 000-12z'
-            stroke='#666' stroke-width='2' fill='none' stroke-linecap='round'/>
-    </svg>
-  </button>
   <script>
     (function() {{
       var map = null;
       var userInteracted = false;
       var debounce;
-      var locateBtn = document.getElementById('locateBtn');
       var hint = document.getElementById('hint');
 
       function post() {{
@@ -409,64 +382,24 @@ async def geo_map_picker_page(
         debounce = setTimeout(post, 500);
       }}
 
-      function setLocateState(state) {{
-        // state: 'idle' | 'loading' | 'granted' | 'denied'
-        locateBtn.classList.remove('loading', 'granted');
-        locateBtn.innerHTML = '';
-        if (state === 'loading') {{
-          locateBtn.classList.add('loading');
-          var s = document.createElement('div');
-          s.className = 'spinner';
-          locateBtn.appendChild(s);
-        }} else {{
-          var color = state === 'granted' ? '#FF5722' : '#666';
-          locateBtn.innerHTML = "<svg width='24' height='24' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>" +
-            "<circle cx='12' cy='12' r='3' fill='" + color + "'/>" +
-            "<path d='M12 2v3M12 19v3M2 12h3M19 12h3M12 6a6 6 0 100 12 6 6 0 000-12z' stroke='" + color + "' stroke-width='2' fill='none' stroke-linecap='round'/>" +
-            "</svg>";
-        }}
-      }}
-
-      function requestLocation(showHint) {{
-        if (!navigator.geolocation) {{
-          if (showHint) alert('Geolocation is not supported by your browser.');
-          setLocateState('idle');
-          return;
-        }}
-        setLocateState('loading');
-        navigator.geolocation.getCurrentPosition(
-          function(pos) {{
-            var lat = pos.coords.latitude;
-            var lng = pos.coords.longitude;
-            flyTo(lat, lng, 17);
-            setLocateState('granted');
-            hint.textContent = 'Pin placed at your current location';
-          }},
-          function(err) {{
-            setLocateState('idle');
-            if (showHint) {{
-              hint.textContent = 'Location unavailable — drag the map to place the pin';
-              setTimeout(function() {{ hint.textContent = 'Drag the map to place the pin'; }}, 3000);
-            }}
-          }},
-          {{ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }}
-        );
-      }}
-
-      locateBtn.addEventListener('click', function() {{ requestLocation(true); }});
-
       window.__gm_ready = function() {{
         try {{
           map = new google.maps.Map(document.getElementById('map'), {{
             center: {{ lat: {lat}, lng: {lng} }},
             zoom: {zoom},
-            disableDefaultUI: false,
-            zoomControl: true,
+            // Strip ALL default UI so the map surface stays clean — we only
+            // want the pin + hint. Zoom is still available via pinch on mobile
+            // and mouse-wheel on desktop.
+            disableDefaultUI: true,
+            zoomControl: false,
             streetViewControl: false,
             mapTypeControl: false,
             fullscreenControl: false,
+            rotateControl: false,
+            scaleControl: false,
             gestureHandling: 'greedy',
             clickableIcons: false,
+            keyboardShortcuts: false,
           }});
           map.addListener('dragstart', function() {{ userInteracted = true; }});
           map.addListener('dragend', function() {{
@@ -484,17 +417,9 @@ async def geo_map_picker_page(
               if (data && data.type === 'fly-to' && typeof data.lat === 'number') {{
                 flyTo(data.lat, data.lng, data.zoom || 15);
               }}
-              if (data && data.type === 'request-locate') {{
-                requestLocation(false);
-              }}
             }} catch(e) {{}}
           }});
           setTimeout(post, 400);
-          // Automatically try to zoom to the user's location on first load.
-          // If permission is already granted (or the OS returns it silently),
-          // this fires without a native prompt. Otherwise the OS prompts once
-          // and — either way — the recenter button remains available.
-          setTimeout(function() {{ requestLocation(false); }}, 600);
         }} catch (err) {{
           document.body.innerHTML = "<div class='fatal'>Unable to load Google Maps. Please make sure the Maps JavaScript API is enabled on the server key.</div>";
         }}
