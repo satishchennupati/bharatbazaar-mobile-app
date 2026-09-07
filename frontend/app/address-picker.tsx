@@ -71,14 +71,14 @@ function MapPickerWeb({ initial, onPin, flyTo }: MapProps) {
       }
     };
     send();
-    const t1 = setTimeout(send, 500);
-    const t2 = setTimeout(send, 1500);
-    const t3 = setTimeout(send, 3000);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
+    const timers = [
+      setTimeout(send, 500),
+      setTimeout(send, 1500),
+      setTimeout(send, 3000),
+      setTimeout(send, 5000),
+      setTimeout(send, 8000),
+    ];
+    return () => timers.forEach(clearTimeout);
   }, [flyTo]);
 
   // React Native web renders unknown elements via the DOM — use string tag directly.
@@ -97,6 +97,8 @@ function MapPickerWeb({ initial, onPin, flyTo }: MapProps) {
 /** Native: use `react-native-webview`. */
 function MapPickerNative({ initial, onPin, flyTo }: MapProps) {
   const webRef = useRef<WebView>(null);
+  const loadedRef = useRef(false);
+  const lastFlyRef = useRef<{ lat: number; lng: number; zoom?: number } | null>(null);
   const uri = resolveImageUrl(`/api/geo/map-picker?lat=${initial.lat}&lng=${initial.lng}&zoom=${initial.zoom}`) || "";
 
   const onMessage = useCallback(
@@ -113,42 +115,52 @@ function MapPickerNative({ initial, onPin, flyTo }: MapProps) {
     [onPin],
   );
 
+  const injectFly = useCallback((f: { lat: number; lng: number; zoom?: number }) => {
+    const flyMsg = JSON.stringify({
+      type: "fly-to", lat: f.lat, lng: f.lng, zoom: f.zoom || 17,
+    });
+    const js = `window.postMessage(${JSON.stringify(flyMsg)}, '*'); true;`;
+    try {
+      webRef.current?.injectJavaScript(js);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   useEffect(() => {
     if (!flyTo || !webRef.current) return;
-    // Retry a few times so we don't miss the moment when the WebView finishes
-    // booting — Google Maps JS can take 1–2 s on cold loads.
-    const flyMsg = JSON.stringify({
-      type: "fly-to", lat: flyTo.lat, lng: flyTo.lng, zoom: flyTo.zoom || 17,
-    });
-    const send = () => {
-      const js = `window.postMessage(${JSON.stringify(flyMsg)}, '*'); true;`;
-      try {
-        webRef.current?.injectJavaScript(js);
-      } catch {
-        /* ignore */
-      }
-    };
-    send();
-    const t1 = setTimeout(send, 500);
-    const t2 = setTimeout(send, 1500);
-    const t3 = setTimeout(send, 3000);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
-  }, [flyTo]);
+    lastFlyRef.current = flyTo;
+    // Retry pattern — the WebView may still be booting, and even the buffered
+    // message handler on the HTML side needs the page's <script> to have
+    // executed at least once for `postMessage` to fire.
+    injectFly(flyTo);
+    const timers = [
+      setTimeout(() => injectFly(flyTo), 500),
+      setTimeout(() => injectFly(flyTo), 1500),
+      setTimeout(() => injectFly(flyTo), 3000),
+      setTimeout(() => injectFly(flyTo), 5000),
+      setTimeout(() => injectFly(flyTo), 8000),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [flyTo, injectFly]);
+
+  // If flyTo was set before the WebView loaded, replay it on load.
+  const onLoadEnd = useCallback(() => {
+    loadedRef.current = true;
+    if (lastFlyRef.current) injectFly(lastFlyRef.current);
+  }, [injectFly]);
 
   return (
     <WebView
       ref={webRef}
       source={{ uri }}
-      onMessage={onMessage}
       style={{ flex: 1 }}
+      geolocationEnabled
       javaScriptEnabled
       domStorageEnabled
-      geolocationEnabled
       originWhitelist={["*"]}
+      onMessage={onMessage}
+      onLoadEnd={onLoadEnd}
       testID="map-picker-webview"
     />
   );

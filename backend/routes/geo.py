@@ -360,6 +360,10 @@ async def geo_map_picker_page(
       var userInteracted = false;
       var debounce;
       var hint = document.getElementById('hint');
+      // Buffer for fly-to requests that arrive before the map finishes loading.
+      // On slow mobile networks Google Maps JS can take several seconds to
+      // initialise — without this buffer the parent's fly-to would be lost.
+      var pendingFlyTo = null;
 
       function post() {{
         if (!map) return;
@@ -374,13 +378,29 @@ async def geo_map_picker_page(
       }}
 
       function flyTo(lat, lng, z) {{
-        if (!map) return;
+        if (!map) {{
+          // Map not ready yet — remember the request for when it is.
+          pendingFlyTo = {{ lat: lat, lng: lng, zoom: z }};
+          return;
+        }}
         userInteracted = true;
         map.panTo({{ lat: lat, lng: lng }});
         if (z) map.setZoom(z);
         clearTimeout(debounce);
         debounce = setTimeout(post, 500);
       }}
+
+      // Register the message listener IMMEDIATELY — never inside __gm_ready —
+      // so fly-to messages sent while Google Maps is still loading are still
+      // captured and applied once the map becomes available.
+      window.addEventListener('message', function(ev) {{
+        try {{
+          var data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+          if (data && data.type === 'fly-to' && typeof data.lat === 'number') {{
+            flyTo(data.lat, data.lng, data.zoom || 17);
+          }}
+        }} catch(e) {{}}
+      }});
 
       window.__gm_ready = function() {{
         try {{
@@ -411,14 +431,20 @@ async def geo_map_picker_page(
             clearTimeout(debounce);
             debounce = setTimeout(post, 250);
           }});
-          window.addEventListener('message', function(ev) {{
+          // Fire once the first tiles paint so the parent hides its loading
+          // spinner (if any) and knows the map is live.
+          google.maps.event.addListenerOnce(map, 'tilesloaded', function() {{
             try {{
-              var data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
-              if (data && data.type === 'fly-to' && typeof data.lat === 'number') {{
-                flyTo(data.lat, data.lng, data.zoom || 15);
-              }}
+              var readyMsg = JSON.stringify({{ type: 'map-ready' }});
+              window.parent.postMessage(readyMsg, '*');
+              if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(readyMsg);
             }} catch(e) {{}}
           }});
+          // Apply any fly-to that arrived while Maps JS was still loading.
+          if (pendingFlyTo) {{
+            var p = pendingFlyTo; pendingFlyTo = null;
+            flyTo(p.lat, p.lng, p.zoom);
+          }}
           setTimeout(post, 400);
         }} catch (err) {{
           document.body.innerHTML = "<div class='fatal'>Unable to load Google Maps. Please make sure the Maps JavaScript API is enabled on the server key.</div>";
