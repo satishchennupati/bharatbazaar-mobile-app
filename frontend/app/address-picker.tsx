@@ -57,11 +57,28 @@ function MapPickerWeb({ initial, onPin, flyTo }: MapProps) {
   }, [onPin]);
 
   useEffect(() => {
-    if (!flyTo || !iframeRef.current?.contentWindow) return;
-    iframeRef.current.contentWindow.postMessage(
-      JSON.stringify({ type: "fly-to", lat: flyTo.lat, lng: flyTo.lng, zoom: flyTo.zoom || 15 }),
-      "*",
-    );
+    if (!flyTo || !iframeRef.current) return;
+    // Retry the flyTo message a few times because the iframe may still be
+    // booting when the parent screen finishes locating the user.
+    const msg = JSON.stringify({
+      type: "fly-to", lat: flyTo.lat, lng: flyTo.lng, zoom: flyTo.zoom || 17,
+    });
+    const send = () => {
+      try {
+        iframeRef.current?.contentWindow?.postMessage(msg, "*");
+      } catch {
+        /* ignore */
+      }
+    };
+    send();
+    const t1 = setTimeout(send, 500);
+    const t2 = setTimeout(send, 1500);
+    const t3 = setTimeout(send, 3000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
   }, [flyTo]);
 
   // React Native web renders unknown elements via the DOM — use string tag directly.
@@ -98,10 +115,28 @@ function MapPickerNative({ initial, onPin, flyTo }: MapProps) {
 
   useEffect(() => {
     if (!flyTo || !webRef.current) return;
-    const js = `window.postMessage(${JSON.stringify(
-      JSON.stringify({ type: "fly-to", lat: flyTo.lat, lng: flyTo.lng, zoom: flyTo.zoom || 15 }),
-    )}, '*'); true;`;
-    webRef.current.injectJavaScript(js);
+    // Retry a few times so we don't miss the moment when the WebView finishes
+    // booting — Google Maps JS can take 1–2 s on cold loads.
+    const flyMsg = JSON.stringify({
+      type: "fly-to", lat: flyTo.lat, lng: flyTo.lng, zoom: flyTo.zoom || 17,
+    });
+    const send = () => {
+      const js = `window.postMessage(${JSON.stringify(flyMsg)}, '*'); true;`;
+      try {
+        webRef.current?.injectJavaScript(js);
+      } catch {
+        /* ignore */
+      }
+    };
+    send();
+    const t1 = setTimeout(send, 500);
+    const t2 = setTimeout(send, 1500);
+    const t3 = setTimeout(send, 3000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
   }, [flyTo]);
 
   return (
@@ -146,11 +181,31 @@ export default function AddressPicker() {
   // ---- Prime device location on first mount ----
   // Ask nicely for location permission. If granted we fly the map to the user's
   // precise coordinates at a high zoom the moment the map is ready. Denials are
-  // silent — the recenter button in the map's overlay is still available.
+  // silent — the user can still drag the map / search manually.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        // On web, expo-location's device APIs are unavailable — fall back to
+        // the browser's Geolocation which prompts the user directly.
+        if (Platform.OS === "web") {
+          if (typeof navigator === "undefined" || !navigator.geolocation) return;
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              if (cancelled) return;
+              setFlyTo({
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                zoom: 17,
+              });
+            },
+            () => {
+              /* denied / unavailable — leave map on default center */
+            },
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 },
+          );
+          return;
+        }
         const { status } = await Location.getForegroundPermissionsAsync();
         let granted = status === "granted";
         if (!granted) {
