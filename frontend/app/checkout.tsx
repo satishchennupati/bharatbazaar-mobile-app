@@ -376,9 +376,10 @@ export default function Checkout() {
         })()}
 
         {/* Segmented control: Map / Manual (Pick on map first per user preference).
-            Tapping "Pick on map" opens the map picker directly — no intermediate
-            "Pick address on map" button, unless an address is already selected
-            and the user wants to change it. */}
+            Tapping "Pick on map" always opens the map picker directly — no
+            intermediate button. The "Change address on map" pill below only
+            appears once a selectedAddress exists, so users can jump back to
+            the picker later without switching tabs. */}
         <View style={styles.segment}>
           <SegmentTab
             label={t("pick_on_map")}
@@ -386,9 +387,7 @@ export default function Checkout() {
             active={entryMode === "map"}
             onPress={() => {
               setEntryMode("map");
-              if (!selectedAddress) {
-                router.push("/address-picker");
-              }
+              router.push("/address-picker");
             }}
             testID="seg-map"
           />
