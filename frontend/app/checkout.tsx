@@ -375,13 +375,21 @@ export default function Checkout() {
           );
         })()}
 
-        {/* Segmented control: Map / Manual (Pick on map first per user preference) */}
+        {/* Segmented control: Map / Manual (Pick on map first per user preference).
+            Tapping "Pick on map" opens the map picker directly — no intermediate
+            "Pick address on map" button, unless an address is already selected
+            and the user wants to change it. */}
         <View style={styles.segment}>
           <SegmentTab
             label={t("pick_on_map")}
             icon="location-outline"
             active={entryMode === "map"}
-            onPress={() => setEntryMode("map")}
+            onPress={() => {
+              setEntryMode("map");
+              if (!selectedAddress) {
+                router.push("/address-picker");
+              }
+            }}
             testID="seg-map"
           />
           <SegmentTab
@@ -393,7 +401,7 @@ export default function Checkout() {
           />
         </View>
 
-        {entryMode === "map" && (
+        {entryMode === "map" && selectedAddress && (
           <>
             <Pressable
               onPress={() => router.push("/address-picker")}
@@ -403,7 +411,7 @@ export default function Checkout() {
               <Ionicons name="location" size={20} color={colors.primary} />
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.primary, fontWeight: "700" }}>
-                  {selectedAddress ? "Change address on map" : "Pick address on map"}
+                  Change address on map
                 </Text>
                 {selectedAddress?.formatted_address ? (
                   <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }} numberOfLines={2}>

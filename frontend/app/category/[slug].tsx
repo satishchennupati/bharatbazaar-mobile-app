@@ -3,7 +3,7 @@
  */
 import { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -16,6 +16,7 @@ import { colors, radius, spacing } from "@/src/theme";
 
 export default function CategoryScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { slug, q } = useLocalSearchParams<{ slug: string; q?: string }>();
   const { t, currency, cartQtyMap } = useApp();
   const cartActions = useCartActions();
@@ -91,7 +92,7 @@ export default function CategoryScreen() {
           keyExtractor={(p) => p.id}
           numColumns={2}
           columnWrapperStyle={{ gap: spacing.md, paddingHorizontal: spacing.lg }}
-          contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: 120, gap: spacing.md }}
+          contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: 120 + insets.bottom, gap: spacing.md }}
           renderItem={({ item }) => (
             <Pressable style={styles.card} onPress={() => router.push(`/product/${item.id}`)} testID={`cat-prod-${item.id}`}>
               <View style={styles.img}>
@@ -118,7 +119,7 @@ export default function CategoryScreen() {
           )}
         />
       )}
-      <FloatingCartBar bottomInset={16} />
+      <FloatingCartBar bottomInset={Math.max(16, insets.bottom + 12)} />
     </SafeAreaView>
   );
 }
