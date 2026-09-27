@@ -135,17 +135,19 @@ export default function CategoryScreen() {
                   {item.unit || item.weight}
                 </Text>
 
-                {/* Discount + price row */}
+                {/* Discount + price row: red "X% OFF" on top, then the
+                    original MRP struck-through on the LEFT and the new
+                    discounted price on the RIGHT of it. */}
                 {pct !== null ? <Text style={styles.off}>{pct}% OFF</Text> : null}
                 <View style={styles.priceRow}>
-                  <Text style={styles.price} numberOfLines={1}>
-                    {formatPrice(item.price_lek, item.price_eur, currency)}
-                  </Text>
                   {pct !== null && item.mrp_lek ? (
                     <Text style={styles.mrp} numberOfLines={1}>
                       {formatPrice(item.mrp_lek, item.mrp_lek / 100, currency)}
                     </Text>
                   ) : null}
+                  <Text style={styles.price} numberOfLines={1}>
+                    {formatPrice(item.price_lek, item.price_eur, currency)}
+                  </Text>
                 </View>
 
                 {/* ADD / stepper floats on the card's bottom-right corner
