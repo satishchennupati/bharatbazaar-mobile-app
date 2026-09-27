@@ -104,7 +104,7 @@ export default function CategoryScreen() {
           keyExtractor={(p) => p.id}
           numColumns={NUM_COLS}
           columnWrapperStyle={{ gap: 8, paddingHorizontal: spacing.md }}
-          contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: 120 + insets.bottom, gap: 8 }}
+          contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: 130 + insets.bottom, gap: 22 }}
           renderItem={({ item }) => {
             const pct = discountPct(item);
             return (
@@ -148,10 +148,9 @@ export default function CategoryScreen() {
                   ) : null}
                 </View>
 
-                {/* ADD / stepper anchored bottom-right (marginTop: auto keeps
-                    buttons aligned across a row even when one card has an
-                    extra "% OFF" row) */}
-                <View style={styles.addWrap}>
+                {/* ADD / stepper floats on the card's bottom-right corner
+                    (Blinkit-style) instead of occupying a full row inside. */}
+                <View style={styles.addWrap} pointerEvents="box-none">
                   <ProductAddButton
                     qty={cartQtyMap[item.id] || 0}
                     onAdd={() => addToCart(item)}
@@ -193,7 +192,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     padding: 8,
-    paddingBottom: 6,
+    paddingBottom: 26, // clears the corner-floating stepper (wider than the +)
+    position: "relative",
   },
   imgBox: {
     width: "100%",
@@ -210,8 +210,14 @@ const styles = StyleSheet.create({
   name: { fontSize: 12, fontWeight: "600", color: colors.textMain, lineHeight: 15, minHeight: 30 },
   unit: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
   off: { fontSize: 10, fontWeight: "800", color: colors.error, marginTop: 4, letterSpacing: 0.2 },
-  priceRow: { flexDirection: "row", alignItems: "baseline", gap: 4, marginTop: 2 },
+  priceRow: { flexDirection: "row", alignItems: "baseline", gap: 4, marginTop: 2, paddingRight: 36 },
   price: { fontSize: 13, fontWeight: "800", color: colors.textMain },
   mrp: { fontSize: 10, color: colors.textMuted, textDecorationLine: "line-through" },
-  addWrap: { alignItems: "flex-end", marginTop: "auto" },
+  // Blinkit-style: the button floats half-over the card's bottom-right edge.
+  addWrap: {
+    position: "absolute",
+    right: 8,
+    bottom: -12,
+    zIndex: 5,
+  },
 });
