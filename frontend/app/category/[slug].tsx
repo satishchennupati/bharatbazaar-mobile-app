@@ -143,15 +143,18 @@ export default function CategoryScreen() {
                 <Text style={styles.name} numberOfLines={2}>
                   {item.name}
                 </Text>
-                {/* Unit / pack size */}
-                <Text style={styles.unit} numberOfLines={1}>
-                  {item.unit || item.weight}
-                </Text>
+                {/* Meta row: discount "X% OFF" left-aligned, weight/unit
+                    right-aligned. Weight stays right-aligned even when there
+                    is no discount (marginLeft: auto). */}
+                <View style={styles.metaRow}>
+                  {disc ? <Text style={styles.off}>{disc.pct}% OFF</Text> : null}
+                  <Text style={[styles.unit, styles.unitRight]} numberOfLines={1}>
+                    {item.unit || item.weight}
+                  </Text>
+                </View>
 
-                {/* Discount + price row: red "X% OFF" on top, then the
-                    original price struck-through on the LEFT and the new
-                    discounted price on the RIGHT of it. */}
-                {disc ? <Text style={styles.off}>{disc.pct}% OFF</Text> : null}
+                {/* Price row: original price struck-through on the LEFT and
+                    the new discounted price on the RIGHT of it. */}
                 <View style={styles.priceRow}>
                   {disc ? (
                     <Text style={styles.mrp} numberOfLines={1}>
@@ -224,7 +227,9 @@ const styles = StyleSheet.create({
   imgEmoji: { fontSize: 40 },
   name: { fontSize: 12, fontWeight: "600", color: colors.textMain, lineHeight: 15, minHeight: 30 },
   unit: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
-  off: { fontSize: 10, fontWeight: "800", color: colors.error, marginTop: 4, letterSpacing: 0.2 },
+  metaRow: { flexDirection: "row", alignItems: "center", marginTop: 4, minHeight: 14 },
+  unitRight: { marginTop: 0, marginLeft: "auto" },
+  off: { fontSize: 10, fontWeight: "800", color: colors.error, letterSpacing: 0.2 },
   priceRow: { flexDirection: "row", alignItems: "baseline", gap: 4, marginTop: 2, paddingRight: 36 },
   price: { fontSize: 13, fontWeight: "800", color: colors.textMain },
   mrp: { fontSize: 10, color: colors.textMuted, textDecorationLine: "line-through" },
