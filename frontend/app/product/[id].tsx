@@ -55,6 +55,18 @@ export default function ProductDetail() {
     );
   }
 
+  // Discount display: explicit MRP wins; otherwise derive the struck original
+  // price from the percentage discount set in admin.
+  let discPct: number | null = null;
+  let discStruckLek: number | null = null;
+  if (product.mrp_lek && product.mrp_lek > product.price_lek) {
+    discPct = Math.round(((product.mrp_lek - product.price_lek) / product.mrp_lek) * 100);
+    discStruckLek = product.mrp_lek;
+  } else if (product.discount > 0 && product.discount < 100) {
+    discPct = Math.round(product.discount);
+    discStruckLek = Math.round(product.price_lek / (1 - product.discount / 100));
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={{ paddingBottom: 140 + insets.bottom }}>
@@ -74,7 +86,15 @@ export default function ProductDetail() {
           <Text style={styles.unitChip}>{product.unit || product.weight || product.sku}</Text>
           <Text style={styles.name} testID="prod-name">{product.name}</Text>
           {product.brand ? <Text style={styles.brand}>by {product.brand}</Text> : null}
-          <Text style={styles.price}>{formatPrice(product.price_lek, product.price_eur, currency)}</Text>
+          <View style={styles.priceRow}>
+            {discPct !== null && discStruckLek !== null && (
+              <>
+                <Text style={styles.offBadge}>{discPct}% OFF</Text>
+                <Text style={styles.mrpStruck}>{formatPrice(discStruckLek, discStruckLek / 100, currency)}</Text>
+              </>
+            )}
+            <Text style={styles.price}>{formatPrice(product.price_lek, product.price_eur, currency)}</Text>
+          </View>
           <Text style={styles.desc}>{product.description}</Text>
           {product.tags.length > 0 && (
             <View style={styles.tags}>
@@ -119,7 +139,10 @@ const styles = StyleSheet.create({
   body: { padding: spacing.lg },
   unitChip: { backgroundColor: colors.surfaceMuted, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, fontSize: 11, color: colors.textMuted, fontWeight: "600" },
   name: { fontSize: 24, fontWeight: "700", color: colors.textMain, marginTop: 12, letterSpacing: -0.4 },
-  price: { fontSize: 28, fontWeight: "700", color: colors.primary, marginTop: 8 },
+  price: { fontSize: 28, fontWeight: "700", color: colors.primary },
+  priceRow: { flexDirection: "row", alignItems: "baseline", gap: 8, marginTop: 8 },
+  offBadge: { fontSize: 13, fontWeight: "800", color: colors.error, letterSpacing: 0.3 },
+  mrpStruck: { fontSize: 16, color: colors.textMuted, textDecorationLine: "line-through", fontWeight: "600" },
   desc: { fontSize: 14, color: colors.textMuted, lineHeight: 22, marginTop: 12 },
   tags: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 16 },
   tag: { backgroundColor: colors.primaryLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },

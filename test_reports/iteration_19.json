@@ -1,0 +1,50 @@
+{
+  "summary": "Iter 19 — verified the discount% bugfix end-to-end. CUSTOMER GRID (/category/[slug]): all 5 migrated products render the discount row correctly with red 'X% OFF' (rgb(239,68,68)) + struck original + bold selling price — Chandan Fresh Mint Pan (5% OFF, struck 53 L, 50 L), Chandan Calcutta Meetha Paan (40% OFF, 83 L, 50 L), Dasmya Moisturizer Gel (10% OFF, 1611 L, 1450 L), Chandan Elaichi Saunf (2% OFF, 184 L, 180 L), and Haldiram Aloo Bhujia via the MRP path (29% OFF, struck 672 L, 480 L). PRODUCT DETAIL: /product/p-3bfd8c47b187 shows 40% OFF badge + struck 83 L + 50 L near price; footer add→stepper→inc/dec→0→ADD restore all work. ADMIN: login +355690000001 → /admin/products → edit Rajdhani Besan → modal contains 'Discount % (optional)' field next to 'MRP (LEK, optional)' (testIDs prod-modal-mrp/prod-modal-discount). Validation 150 → inline error 'Discount % must be between 0 and 99', modal stays open. Set 15 → save → customer grid (/category/flour) shows '15% OFF | struck 600 L | bold 510 L' (derived 510/0.85=600 ✓). Reverted to 0 via UI → grid shows plain 510 L, no OFF row. REGRESSION: 29/30 snack cards (all except Haldiram) show no OFF row; grid ADD→stepper works on non-discounted product. Backend data verified via public API: 5 discounted products intact, Rajdhani Besan cleanly reverted (discount 0, mrp null).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/product/[id]",
+        "issues": [
+          "Struck original price hardcodes Lek suffix ('{Math.round(discStruckLek)} L') instead of formatPrice() — shows 'L' even in EUR currency, inconsistent with the category grid which now uses formatPrice. Reference: app/product/[id].tsx:93"
+        ]
+      },
+      {
+        "screen": "/admin/products (edit modal)",
+        "issues": [
+          "At 390x844 mobile-web viewport the sticky Save button sits outside the viewport and a normal tap fails ('element outside of viewport' even after scroll-into-view); had to JS-dispatch the click in tests. Likely web-preview-only (native Modal is fine on device) but worth checking on a real phone browser.",
+          "Clearing the Discount % field to empty does NOT clear an existing discount — frontend omits empty discount from the PATCH body (app/admin/products.tsx:421-425) and backend skips null fields (routes/admin_products.py:98), so the old value persists. Admin must type 0 to remove a discount. Minor UX gap."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iter19_shots/mukhwas_grid.jpeg (Chandan 5%/40% OFF cards)",
+    "/app/test_reports/iter19_shots/snacks_grid.jpeg (grid + floating cart bar)",
+    "/app/test_reports/iter19_shots/detail_discount.jpeg (40% OFF + struck 83 L + 50 L + footer)",
+    "/app/test_reports/iter19_shots/admin_modal.jpeg (Discount % field with validation value 150)",
+    "/app/test_reports/iter19_shots/flour_15off.jpeg (admin-set 15% OFF visible on customer grid)"
+  ],
+  "action_items": [
+    "OPTIONAL: use formatPrice for the struck price on /product/[id] (app/product/[id].tsx:93) for currency consistency with the grid.",
+    "OPTIONAL: send discount:0 when admin clears the Discount % field, or allow backend PATCH to unset, so clearing the field removes the discount (app/admin/products.tsx:421).",
+    "OPTIONAL: verify admin edit-modal Save button reachability on a real mobile browser at small heights."
+  ],
+  "critical_code_review_comments": [
+    "discountInfo() in app/category/[slug].tsx:23-40 is correct: MRP path wins when mrp_lek>price_lek, else discount% derives struck = price/(1-pct/100), guarded 0<d<100. Display-only; charged amount stays price_lek (verified: cart line_lek = 480 for Haldiram, i.e. selling price, not derived original).",
+    "app/product/[id].tsx:60-68 mirrors the same logic correctly; renders badge+struck+price in one row.",
+    "Admin modal validation blocks discount>=100 with the exact expected message and keeps modal open (verified live).",
+    "Admin PATCH (routes/admin_products.py:85-116) whitelists fields including discount/mrp_lek, excludes _id, bumps updated_at/updated_by. Clean.",
+    "No deprecated expo packages observed in files reviewed; no new react_native_issues."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (spot-checked public APIs: products, cart, auth login — all 200 and correct)", "frontend": "100% (all 5 requested flows + regressions pass)"},
+  "seed_data_creation": "No new seed data. Tested discount 15 on Rajdhani Besan then reverted to 0 via admin UI; verified via API that discount=0 and mrp_lek=null. Cleaned quick-user cart (DELETE /api/cart) which had 4 leftover items from prior iterations.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Discount bugfix fully verified; nothing blocking. Practical notes: (1) Category slugs are mukhwas/personal_care/mithai (not mouth-fresheners). (2) Admin modal Save button is outside viewport at 390x844 in web preview — use JS-dispatched click (document.querySelector('[data-testid=prod-modal-save]').dispatchEvent(new MouseEvent('click',{bubbles:true}))) or a taller viewport. (3) Detail pages keep the underlying category screen mounted, so duplicate testIDs exist — always use ':visible' + .last locators on /product/[id]. (4) Struck prices render without thousands separators (e.g. '1611 L' not '1,611 L'). (5) Empty discount field does not clear an existing discount; use 0.",
+  "rca_of_issue": "Original bug RCA (confirmed fixed): user entered percentage values into the MRP field; since mrp(5/40/10/2) < price, discountInfo() returned null and no OFF row rendered. Fix adds a dedicated Discount % field (validated 0-99), a discountInfo() fallback that derives the struck original from discount%, matching detail-page rendering, and a data migration setting discount=<pct> + mrp_lek=null on the 4 misentered products. Verified all four products + the genuine-MRP Haldiram case render correctly."
+}

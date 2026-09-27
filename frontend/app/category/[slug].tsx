@@ -20,10 +20,23 @@ import { colors, radius, spacing } from "@/src/theme";
 
 const NUM_COLS = 3;
 
-function discountPct(p: Product): number | null {
-  const mrp = p.mrp_lek;
-  if (!mrp || mrp <= p.price_lek) return null;
-  return Math.round(((mrp - p.price_lek) / mrp) * 100);
+function discountInfo(p: Product): { pct: number; struckLek: number } | null {
+  // 1) Explicit MRP (original price) set in admin → % off vs selling price.
+  if (p.mrp_lek && p.mrp_lek > p.price_lek) {
+    return {
+      pct: Math.round(((p.mrp_lek - p.price_lek) / p.mrp_lek) * 100),
+      struckLek: p.mrp_lek,
+    };
+  }
+  // 2) Percentage discount set in admin → original price is derived so the
+  //    current selling price = original × (1 − pct/100). Display-only; the
+  //    amount charged stays `price_lek`.
+  const d = Number(p.discount || 0);
+  if (d > 0 && d < 100) {
+    const original = p.price_lek / (1 - d / 100);
+    return { pct: Math.round(d), struckLek: Math.round(original) };
+  }
+  return null;
 }
 
 export default function CategoryScreen() {
@@ -106,7 +119,7 @@ export default function CategoryScreen() {
           columnWrapperStyle={{ gap: 8, paddingHorizontal: spacing.md }}
           contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: 130 + insets.bottom, gap: 22 }}
           renderItem={({ item }) => {
-            const pct = discountPct(item);
+            const disc = discountInfo(item);
             return (
               <Pressable
                 style={styles.card}
@@ -136,13 +149,13 @@ export default function CategoryScreen() {
                 </Text>
 
                 {/* Discount + price row: red "X% OFF" on top, then the
-                    original MRP struck-through on the LEFT and the new
+                    original price struck-through on the LEFT and the new
                     discounted price on the RIGHT of it. */}
-                {pct !== null ? <Text style={styles.off}>{pct}% OFF</Text> : null}
+                {disc ? <Text style={styles.off}>{disc.pct}% OFF</Text> : null}
                 <View style={styles.priceRow}>
-                  {pct !== null && item.mrp_lek ? (
+                  {disc ? (
                     <Text style={styles.mrp} numberOfLines={1}>
-                      {formatPrice(item.mrp_lek, item.mrp_lek / 100, currency)}
+                      {formatPrice(disc.struckLek, disc.struckLek / 100, currency)}
                     </Text>
                   ) : null}
                   <Text style={styles.price} numberOfLines={1}>

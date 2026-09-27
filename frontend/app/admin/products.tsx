@@ -353,6 +353,7 @@ function EditProductModal({
     category_slug: product.category_slug || categories[0]?.slug || "",
     price_lek: String(product.price_lek ?? ""),
     mrp_lek: String(product.mrp_lek ?? ""),
+    discount: String(product.discount ?? ""),
     stock: String(product.stock ?? 0),
     in_stock: product.in_stock ?? true,
     weight: product.weight || "",
@@ -414,6 +415,16 @@ function EditProductModal({
     const mrpNum = Number(form.mrp_lek);
     if (form.mrp_lek !== "" && !Number.isNaN(mrpNum) && mrpNum > 0) {
       body.mrp_lek = mrpNum;
+    }
+    // Discount % is optional — a percentage (0–100) off the selling price,
+    // shown as "X% OFF" with a struck original price on the product card.
+    // Empty field on an existing discount explicitly clears it (sends 0).
+    const discNum = Number(form.discount);
+    if (form.discount !== "" && !Number.isNaN(discNum)) {
+      if (discNum < 0 || discNum >= 100) return setError("Discount % must be between 0 and 99");
+      body.discount = discNum;
+    } else if (form.discount === "" && (product.discount ?? 0) > 0) {
+      body.discount = 0;
     }
     if (imgDataUrl) body.image_data_url = imgDataUrl;
     setSaving(true);
@@ -498,9 +509,20 @@ function EditProductModal({
                   onChangeText={(v) => setForm({ ...form, mrp_lek: v.replace(/[^\d.]/g, "") })}
                   keyboardType="decimal-pad"
                   style={styles.input}
-                  placeholder="Shows % OFF"
+                  placeholder="Original price"
                   placeholderTextColor={colors.textDisabled}
                   testID="prod-modal-mrp"
+                />
+              </Field>
+              <Field label="Discount % (optional)" flex>
+                <TextInput
+                  value={form.discount}
+                  onChangeText={(v) => setForm({ ...form, discount: v.replace(/[^\d.]/g, "") })}
+                  keyboardType="decimal-pad"
+                  style={styles.input}
+                  placeholder="e.g. 10"
+                  placeholderTextColor={colors.textDisabled}
+                  testID="prod-modal-discount"
                 />
               </Field>
             </View>
