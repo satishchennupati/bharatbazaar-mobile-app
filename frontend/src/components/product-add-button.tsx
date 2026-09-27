@@ -7,7 +7,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, radius } from "@/src/theme";
+import { radius } from "@/src/theme";
 
 type Props = {
   qty: number;
@@ -29,7 +29,7 @@ export function ProductAddButton({ qty, onAdd, onIncrement, onDecrement, disable
         hitSlop={8}
         testID={`add-to-cart-${productId}`}
       >
-        <Ionicons name="add" size={compact ? 20 : 22} color={colors.primary} />
+        <Ionicons name="add" size={compact ? 20 : 22} color={INK} />
       </Pressable>
     );
   }
@@ -42,7 +42,7 @@ export function ProductAddButton({ qty, onAdd, onIncrement, onDecrement, disable
         hitSlop={6}
         testID={`qty-dec-${productId}`}
       >
-        <Ionicons name="remove" size={16} color={colors.primary} />
+        <Ionicons name="remove" size={16} color={INK} />
       </Pressable>
       <Text style={styles.qtyText} testID={`qty-val-${productId}`}>{qty}</Text>
       <Pressable
@@ -58,16 +58,21 @@ export function ProductAddButton({ qty, onAdd, onIncrement, onDecrement, disable
   );
 }
 
-const SUCCESS = "#16A34A";
+// Brand accent requested by the store: solid neon green for the cart
+// add/stepper control. Kept as a literal because it must render identically
+// in light and dark themes. Dark ink glyphs for contrast on the neon fill.
+const NEON_GREEN = "#39FF14";
+const INK = "#063A00";
+const STEP_GREEN = "#16A34A";
 
 const styles = StyleSheet.create({
   addBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: NEON_GREEN,
     borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderColor: NEON_GREEN,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -75,9 +80,9 @@ const styles = StyleSheet.create({
   stepper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.primaryLight,
+    backgroundColor: NEON_GREEN,
     borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderColor: NEON_GREEN,
     borderRadius: radius.pill,
     paddingHorizontal: 2,
     height: 36,
@@ -93,13 +98,13 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   stepperPlus: {
-    backgroundColor: SUCCESS,
+    backgroundColor: STEP_GREEN,
   },
   qtyText: {
     minWidth: 22,
     textAlign: "center",
     fontWeight: "700",
-    color: colors.primary,
+    color: INK,
     fontSize: 14,
   },
 });
