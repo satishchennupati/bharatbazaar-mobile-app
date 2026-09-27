@@ -1,0 +1,43 @@
+{
+  "summary": "Iter 18 — verified Blinkit-style category page revamp (/category/[slug].tsx). Mobile viewport 375x667, logged in as quick-user (+355695808480/123456). PASS: (1) 3-column grid confirmed via bounding boxes (3 cards/row, 112px wide, equal heights), each card shows contained product image on light bg (img complete + naturalWidth>0), 2-line name, unit, bold price, ADD (+) button anchored bottom-right (rightOffset 9px, bottomOffset 7px). (2) ADD→stepper flow works: tap + → stepper, inc → qty+1, dec → qty-1 (verified 2→3→2 after a pre-existing cart item); decrement to 0 restores the + button. (3) Card tap navigates to /product/<id> (prod-name visible); prod-back returns to /category/snacks with qty stepper state preserved. (4) Floating cart bar (testID floating-cart-bar) visible with correct count/subtotal, positioned within viewport (bottom=651 < 667 innerH) — no overlap. (5) Search regression: /category/search?q=rice renders same 3-col grid ('rice · 6'). (6) Empty state: /category/does-not-exist shows 'No products found'. OFF-row UI intentionally not rendered anywhere: verified 0/100 products have mrp_lek via GET /api/products, so the discount row could not be visually verified — code logic (discountPct: mrp>price → red X% OFF + strikethrough MRP) reviewed and correct.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/category/[slug]",
+        "issues": [
+          "MRP strikethrough hardcodes Lek suffix ('{Math.round(item.mrp_lek)} L') instead of using formatPrice() — will show 'L' even when user currency is EUR, inconsistent with the bold price which respects currency. Reference: app/category/[slug].tsx:146",
+          "ADD/stepper is aligned right but not truly bottom-anchored (addWrap uses marginTop:4, not marginTop:'auto'). Currently harmless because no products have mrp_lek so all cards have identical content height; once a product has an OFF row, its ADD button will sit lower than siblings in the same row. Reference: app/category/[slug].tsx:211",
+          "Compact ADD button visual size is 32x32px (<44px guideline) but hitSlop=8 gives ~48px effective touch target — acceptable, no action needed."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/tmp/iter17_cat_grid.png (3-col grid, snacks)",
+    "/tmp/iter17_stepper_flow.png (floating cart bar 'View cart · 1 item · 510 L')",
+    "/tmp/iter17_search.png (search?q=rice grid, 'rice · 6')",
+    "/tmp/iter17_empty.png (No products found empty state)"
+  ],
+  "action_items": [
+    "OPTIONAL: use formatPrice (or currency-aware suffix) for the strikethrough MRP in category cards instead of hardcoded 'L' (app/category/[slug].tsx:146).",
+    "OPTIONAL: add marginTop:'auto' to addWrap (and flexGrow on card content) so ADD buttons stay bottom-aligned when a product with mrp_lek adds an OFF row (app/category/[slug].tsx:211).",
+    "OPTIONAL: seed one test product with mrp_lek > price_lek so the red 'X% OFF' + strikethrough row can be visually verified in a future iteration."
+  ],
+  "critical_code_review_comments": [
+    "/app/frontend/app/category/[slug].tsx (213 lines) is clean: discountPct correctly returns null when mrp_lek missing/<=price; FlatList numColumns=3 with columnWrapperStyle gap renders a true 3-col grid on web; all text wrapped in Text; StyleSheet.create used; testIDs present on all interactive elements (cat-back, cat-prod-<id>, add-to-cart-<id>, qty-inc/dec-<id>, floating-cart-bar).",
+    "mrp_lek?: number | null correctly added to Product type in /app/frontend/src/lib/api.ts:89 — matches backend field, no _id leakage.",
+    "No backend changes in this iteration; verified GET /api/products?category=snacks and ?q=rice both return 200 with data used by the grid.",
+    "Pre-existing console deprecations (shadow* / pointerEvents) still present — carried over from iter 16, not introduced by this revamp."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (no backend changes; spot-checked products/search APIs return 200)", "frontend": "100% (6/6 requested flows pass)"},
+  "seed_data_creation": "None. Cleaned up: decremented test product p-ebfafce16806 back to qty 0 after stepper test. Note: quick-user's cart had 1 leftover item (Rajdhani Besan, 510 L) from a previous session — left untouched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Category revamp fully verified. Login: onboard-continue-btn → auth-phone-input '695808480' → auth-continue-btn → auth-password-input '123456' → auth-login-btn. No product has mrp_lek (0/100) so OFF row never renders — to test discount UI, seed mrp_lek first. Each browser_automation run starts a fresh session (re-login required). Note: first browser_automation call in this session returned stale output from a prior queued run — re-running the identical script worked; if output doesn't match your script's prints, just re-run once. iteration_17.json was written by a concurrent run for a different feature (product-detail sticky bar) — this report is iteration_18.",
+  "rca_of_issue": "No bugs found in the revamped category page. All 6 requested test scenarios pass."
+}

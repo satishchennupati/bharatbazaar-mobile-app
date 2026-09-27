@@ -22,6 +22,7 @@ type Product = {
   category_slug: string;
   price_lek: number;
   price_eur?: number;
+  mrp_lek?: number | null;
   discount?: number;
   sku?: string;
   product_code?: string;
@@ -351,6 +352,7 @@ function EditProductModal({
     name: product.name || "",
     category_slug: product.category_slug || categories[0]?.slug || "",
     price_lek: String(product.price_lek ?? ""),
+    mrp_lek: String(product.mrp_lek ?? ""),
     stock: String(product.stock ?? 0),
     in_stock: product.in_stock ?? true,
     weight: product.weight || "",
@@ -408,6 +410,11 @@ function EditProductModal({
       ean_barcode: form.ean_barcode,
       unit: form.unit,
     };
+    // MRP is optional — only send when a valid number is entered.
+    const mrpNum = Number(form.mrp_lek);
+    if (form.mrp_lek !== "" && !Number.isNaN(mrpNum) && mrpNum > 0) {
+      body.mrp_lek = mrpNum;
+    }
     if (imgDataUrl) body.image_data_url = imgDataUrl;
     setSaving(true);
     try {
@@ -485,6 +492,19 @@ function EditProductModal({
                   testID="prod-modal-price"
                 />
               </Field>
+              <Field label="MRP (LEK, optional)" flex>
+                <TextInput
+                  value={form.mrp_lek}
+                  onChangeText={(v) => setForm({ ...form, mrp_lek: v.replace(/[^\d.]/g, "") })}
+                  keyboardType="decimal-pad"
+                  style={styles.input}
+                  placeholder="Shows % OFF"
+                  placeholderTextColor={colors.textDisabled}
+                  testID="prod-modal-mrp"
+                />
+              </Field>
+            </View>
+            <View style={{ flexDirection: "row", gap: 8 }}>
               <Field label="Stock" flex>
                 <TextInput
                   value={form.stock}

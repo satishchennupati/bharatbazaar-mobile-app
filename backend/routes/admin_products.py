@@ -52,6 +52,7 @@ async def admin_create_product(payload: AdminProductIn, admin: dict = Depends(re
         "price": payload.price_lek,
         "price_lek": payload.price_lek,
         "price_eur": price_eur,
+        "mrp_lek": payload.mrp_lek,
         "discount": payload.discount,
         "sku": payload.sku,
         "product_code": payload.product_code,
@@ -88,7 +89,7 @@ async def admin_update_product(product_id: str, payload: AdminProductPatch, admi
         raise HTTPException(status_code=404, detail="Product not found")
     updates: dict = {}
     for field in (
-        "name", "description", "category_slug", "price_lek", "price_eur", "discount",
+        "name", "description", "category_slug", "price_lek", "price_eur", "mrp_lek", "discount",
         "sku", "product_code", "ean_barcode", "stock", "in_stock",
         "weight", "weight_grams", "brand", "tags", "variants",
         "image_emoji", "image_url", "unit",

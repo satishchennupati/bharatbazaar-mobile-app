@@ -1,0 +1,42 @@
+{
+  "summary": "Bug fix verification: product details bottom sticky bar (safe-area overlap). VERIFIED FIXED. Tested on web preview (insets.bottom=0): footer sits flush at viewport bottom (bottom=844px=viewport height, height 79px, white opaque bg), PRICE label + price (510 L) + add/stepper all fully visible and unobstructed. Code review confirms fix correctly applied in /app/frontend/app/product/[id].tsx: useSafeAreaInsets() + paddingBottom: Math.max(spacing.lg, insets.bottom + 8), ScrollView paddingBottom 140+insets.bottom, SafeAreaView edges=['top']. Qty stepper fully functional: add->1, increment->2, decrement->1 (backend cart sync working). Product page regression: hero image, unit chip, name, brand, price, description all render; prod-back works in natural navigation flow. Regression on other bottom bars: checkout Place order bar fully visible (bottom=844, h=91), address-picker Use this address bar fully visible, category floating View cart bar also fully visible. No console errors observed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ProductAddButton stepper",
+        "issue": "Stepper +/- buttons are 28x28px touch targets (hitSlop 6 gives ~40px effective) - below the 44px minimum touch target guideline. Add button is 36x36. Not part of this fix's scope; pre-existing design.",
+        "testID": "qty-inc-<productId> / qty-dec-<productId> / add-to-cart-<productId>",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iter17_shots/product_footer.png",
+    "/app/test_reports/iter17_shots/product_stepper.png",
+    "/app/test_reports/iter17_shots/checkout_footer.png",
+    "/app/test_reports/iter17_shots/address_picker.png"
+  ],
+  "action_items": [
+    "Optional (LOW): increase stepper button touch targets in /app/frontend/src/components/product-add-button.tsx toward 44px (e.g. larger hitSlop or button size).",
+    "Note (not a regression): expo-router web router.back() is a no-op after direct URL load/page refresh of /product/<id> (no in-router history). Back button works correctly in the real in-app navigation flow (category -> product -> back). Consider a fallback router.replace('/') when !router.canGoBack() if deep-link entry is a concern."
+  ],
+  "critical_code_review_comments": [
+    "Fix in product/[id].tsx is correct and matches the pattern already used in checkout.tsx (footerBar) and address-picker.tsx (bottomSheet): Math.max(spacing.lg, insets.bottom + 8).",
+    "Footer remains position:absolute bottom:0 but is now padded internally by the safe-area inset, so on Android the content lifts above the 3-button nav. ScrollView paddingBottom (140 + insets.bottom) keeps content scrollable above the footer. No double padding since edges=['top'].",
+    "All interactive elements have testIDs; styles use StyleSheet.create; text wrapped in Text. No deprecated expo packages observed in reviewed files."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only testing, no backend changes)", "frontend": "100% (10/10 checks passed)"},
+  "seed_data_creation": "None. Used existing product p-7321ec1d65dd (Rajdhani Besan) and existing quick-user cart state (qty adjusted 0->1->2->1 during test; 1 unit left in cart).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Product page safe-area fix verified on web preview. IMPORTANT: to test prod-back (or any router.back()) you MUST navigate in-app (home -> categories -> cat-tile-flour -> cat-prod-<id>); a direct page.goto() leaves no in-router history so back is a no-op (web artifact, not a bug). When clicking a category product card, avoid the card center - the qty stepper overlays it; click the product name/image area (bounding box offset ~88% height or ~25% height). Login: onboard-continue-btn -> auth-phone-input '695808480' -> auth-continue-btn -> auth-password-input '123456' -> auth-login-btn.",
+  "rca_of_issue": "Original bug: footer in product/[id].tsx was position:absolute bottom:0 with fixed padding, so on Android devices with 3-button navigation the system nav bar overlapped the footer, greying it out. Root cause: footer ignored bottom safe-area inset and SafeAreaView had edges ['top','bottom'] which conflicted with the absolutely positioned footer (absolute positioning ignores parent padding). Fix: useSafeAreaInsets() + dynamic paddingBottom on footer, ScrollView paddingBottom includes insets.bottom, edges changed to ['top'] only. Verified: footer bottom edge exactly at viewport bottom on web (insets=0) with all content visible; on Android the Math.max(spacing.lg, insets.bottom + 8) padding lifts content above the system nav."
+}

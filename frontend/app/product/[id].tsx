@@ -3,7 +3,7 @@
  */
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -15,6 +15,7 @@ import { colors, radius, spacing } from "@/src/theme";
 
 export default function ProductDetail() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t, currency, cartQtyMap } = useApp();
   const cartActions = useCartActions();
@@ -55,8 +56,8 @@ export default function ProductDetail() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 140 }}>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 140 + insets.bottom }}>
         <View style={styles.headerBar}>
           <Pressable onPress={() => router.back()} style={styles.back} testID="prod-back">
             <Ionicons name="chevron-back" size={24} color={colors.textMain} />
@@ -86,7 +87,10 @@ export default function ProductDetail() {
           )}
         </View>
       </ScrollView>
-      <View style={styles.footer}>
+      {/* Sticky price/qty bar — padded by the bottom safe-area inset so the
+          phone's system navigation (3-button bar / home indicator) never
+          overlaps or greys it out. */}
+      <View style={[styles.footer, { paddingBottom: Math.max(spacing.lg, insets.bottom + 8) }]}>
         <View style={{ flex: 1 }}>
           <Text style={styles.footerPriceLabel}>Price</Text>
           <Text style={styles.footerPrice}>{formatPrice(product.price_lek, product.price_eur, currency)}</Text>

@@ -1,5 +1,9 @@
 /**
- * Category product list (also handles /category/search?q=...).
+ * Category product list — Blinkit-style card grid (also handles /category/search?q=...).
+ *
+ * 3-column grid of compact cards: contained product image, 2-line name,
+ * unit/weight, red "X% OFF" + strikethrough MRP when available, bold price,
+ * and an ADD/stepper button anchored bottom-right.
  */
 import { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
@@ -13,6 +17,14 @@ import { useCartActions } from "@/src/hooks/use-cart-actions";
 import { ProductAddButton } from "@/src/components/product-add-button";
 import { FloatingCartBar } from "@/src/components/floating-cart-bar";
 import { colors, radius, spacing } from "@/src/theme";
+
+const NUM_COLS = 3;
+
+function discountPct(p: Product): number | null {
+  const mrp = p.mrp_lek;
+  if (!mrp || mrp <= p.price_lek) return null;
+  return Math.round(((mrp - p.price_lek) / mrp) * 100);
+}
 
 export default function CategoryScreen() {
   const router = useRouter();
@@ -90,18 +102,56 @@ export default function CategoryScreen() {
         <FlatList
           data={products}
           keyExtractor={(p) => p.id}
-          numColumns={2}
-          columnWrapperStyle={{ gap: spacing.md, paddingHorizontal: spacing.lg }}
-          contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: 120 + insets.bottom, gap: spacing.md }}
-          renderItem={({ item }) => (
-            <Pressable style={styles.card} onPress={() => router.push(`/product/${item.id}`)} testID={`cat-prod-${item.id}`}>
-              <View style={styles.img}>
-                {item.image_url ? (
-                  <Image source={{ uri: resolveImageUrl(item.image_url) }} style={styles.imgReal} resizeMode="contain" />
-                ) : (
-                  <Text style={styles.imgEmoji}>{item.image_emoji}</Text>
-                )}
-                <View style={styles.stepperOverlay}>
+          numColumns={NUM_COLS}
+          columnWrapperStyle={{ gap: 8, paddingHorizontal: spacing.md }}
+          contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: 120 + insets.bottom, gap: 8 }}
+          renderItem={({ item }) => {
+            const pct = discountPct(item);
+            return (
+              <Pressable
+                style={styles.card}
+                onPress={() => router.push(`/product/${item.id}`)}
+                testID={`cat-prod-${item.id}`}
+              >
+                {/* Product image — contained on a light background */}
+                <View style={styles.imgBox}>
+                  {item.image_url ? (
+                    <Image
+                      source={{ uri: resolveImageUrl(item.image_url) }}
+                      style={styles.imgReal}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <Text style={styles.imgEmoji}>{item.image_emoji}</Text>
+                  )}
+                </View>
+
+                {/* Name — 2 lines max */}
+                <Text style={styles.name} numberOfLines={2}>
+                  {item.name}
+                </Text>
+                {/* Unit / pack size */}
+                <Text style={styles.unit} numberOfLines={1}>
+                  {item.unit || item.weight}
+                </Text>
+
+                {/* Discount + price row */}
+                {pct !== null ? <Text style={styles.off}>{pct}% OFF</Text> : null}
+                <View style={styles.priceRow}>
+                  <Text style={styles.price} numberOfLines={1}>
+                    {formatPrice(item.price_lek, item.price_eur, currency)}
+                  </Text>
+                  {pct !== null && item.mrp_lek ? (
+                    <Text style={styles.mrp} numberOfLines={1}>
+                      {formatPrice(item.mrp_lek, item.mrp_lek / 100, currency)}
+                    </Text>
+                  ) : null}
+                </View>
+
+                {/* ADD / stepper anchored bottom-right (marginTop: auto keeps
+                    buttons aligned across a row even when one card has an
+                    extra "% OFF" row) */}
+                <View style={styles.addWrap}>
                   <ProductAddButton
                     qty={cartQtyMap[item.id] || 0}
                     onAdd={() => addToCart(item)}
@@ -111,12 +161,9 @@ export default function CategoryScreen() {
                     compact
                   />
                 </View>
-              </View>
-              <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
-              <Text style={styles.unit}>{item.unit || item.weight}</Text>
-              <Text style={styles.price}>{formatPrice(item.price_lek, item.price_eur, currency)}</Text>
-            </Pressable>
-          )}
+              </Pressable>
+            );
+          }}
         />
       )}
       <FloatingCartBar bottomInset={Math.max(16, insets.bottom + 12)} />
@@ -135,15 +182,36 @@ const styles = StyleSheet.create({
   sub: { fontSize: 12, color: colors.textMuted },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   emptyText: { fontSize: 15, color: colors.textMuted, marginTop: 8 },
-  card: { flex: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.md },
-  img: { height: 96, backgroundColor: colors.surfaceMuted, borderRadius: radius.md, alignItems: "center", justifyContent: "center", marginBottom: 8, position: "relative" },
-  stepperOverlay: { position: "absolute", right: 6, bottom: 6 },
-  imgEmoji: { fontSize: 48 },
-  imgReal: { width: "100%", height: "100%" },
-  name: { fontSize: 13, fontWeight: "600", color: colors.textMain, lineHeight: 16 },
-  unit: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
-  footer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },
-  price: { fontSize: 14, fontWeight: "700", color: colors.textMain },
-  addBtn: { flexDirection: "row", alignItems: "center", backgroundColor: colors.primaryLight, borderWidth: 1, borderColor: colors.primary, borderRadius: radius.md, paddingHorizontal: 8, paddingVertical: 4, gap: 2 },
-  addBtnText: { color: colors.primary, fontWeight: "700", fontSize: 12 },
+
+  card: {
+    flex: 1,
+    // Cap width so a partially-filled last row doesn't stretch the card
+    // full-width (classic FlatList numColumns pitfall).
+    maxWidth: "33.33%",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: 8,
+    paddingBottom: 6,
+  },
+  imgBox: {
+    width: "100%",
+    aspectRatio: 1,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+    overflow: "hidden",
+  },
+  imgReal: { width: "88%", height: "88%" },
+  imgEmoji: { fontSize: 40 },
+  name: { fontSize: 12, fontWeight: "600", color: colors.textMain, lineHeight: 15, minHeight: 30 },
+  unit: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
+  off: { fontSize: 10, fontWeight: "800", color: colors.error, marginTop: 4, letterSpacing: 0.2 },
+  priceRow: { flexDirection: "row", alignItems: "baseline", gap: 4, marginTop: 2 },
+  price: { fontSize: 13, fontWeight: "800", color: colors.textMain },
+  mrp: { fontSize: 10, color: colors.textMuted, textDecorationLine: "line-through" },
+  addWrap: { alignItems: "flex-end", marginTop: "auto" },
 });

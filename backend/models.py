@@ -26,6 +26,7 @@ class Product(BaseModel):
     price: float
     price_lek: float
     price_eur: float
+    mrp_lek: Optional[float] = None
     discount: float = 0.0
     sku: str = ""
     product_code: str = ""
@@ -156,6 +157,7 @@ class AdminProductIn(BaseModel):
     category_slug: str
     price_lek: float
     price_eur: Optional[float] = None
+    mrp_lek: Optional[float] = None
     discount: float = 0.0
     sku: str = ""
     product_code: str = ""
@@ -179,6 +181,7 @@ class AdminProductPatch(BaseModel):
     category_slug: Optional[str] = None
     price_lek: Optional[float] = None
     price_eur: Optional[float] = None
+    mrp_lek: Optional[float] = None
     discount: Optional[float] = None
     sku: Optional[str] = None
     product_code: Optional[str] = None

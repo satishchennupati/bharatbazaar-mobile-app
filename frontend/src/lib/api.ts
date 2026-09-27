@@ -86,6 +86,7 @@ export type Product = {
   price: number;
   price_lek: number;
   price_eur: number;
+  mrp_lek?: number | null;
   discount: number;
   sku: string;
   product_code: string;
