@@ -5,6 +5,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { storage } from "@/src/utils/storage";
+import { api } from "@/src/lib/api";
 import type { Currency, Lang } from "@/src/i18n";
 import { t as translate } from "@/src/i18n";
 
@@ -25,6 +26,7 @@ export type User = {
   addresses?: any[];
   avatar_url?: string | null;
   is_admin?: boolean;
+  favourites?: string[];
 };
 
 type Ctx = {
@@ -45,6 +47,8 @@ type Ctx = {
   setCartCount: (n: number) => void;
   cartQtyMap: Record<string, number>;
   applyCart: (items: Array<{ product_id: string; qty: number }> | undefined | null, count?: number) => void;
+  favIds: Record<string, true>;
+  applyFavourites: (ids: string[] | undefined | null) => void;
   selectedAddress: SelectedAddress | null;
   setSelectedAddress: (a: SelectedAddress | null) => void;
   appliedCoupon: AppliedCoupon | null;
@@ -84,6 +88,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currency, setCurrencyState] = useState<Currency>("LEK");
   const [cartCount, setCartCount] = useState(0);
   const [cartQtyMap, setCartQtyMap] = useState<Record<string, number>>({});
+  const [favIds, setFavIds] = useState<Record<string, true>>({});
   const [selectedAddress, setSelectedAddress] = useState<SelectedAddress | null>(null);
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
 
@@ -101,6 +106,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const applyFavourites = useCallback((ids: string[] | undefined | null) => {
+    const next: Record<string, true> = {};
+    (ids || []).forEach((id) => {
+      next[id] = true;
+    });
+    setFavIds(next);
+  }, []);
+
+  // Hydrate favourites app-wide whenever we have a token, so the hearts and
+  // the Profile/Favourites count are correct regardless of which screen the
+  // user opens first (Home, Profile, or a deep-link into /favourites).
+  useEffect(() => {
+    if (!token) {
+      setFavIds({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const favs = await api.get<{ id: string }[]>("/me/favourites", true);
+        if (!cancelled) applyFavourites(favs.map((p) => p.id));
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, applyFavourites]);
+
   useEffect(() => {
     (async () => {
       const [tk, u, l, c, ob] = await Promise.all([
@@ -113,7 +146,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (tk) setToken(String(tk));
       if (u) {
         try {
-          setUser(JSON.parse(String(u)));
+          const parsed = JSON.parse(String(u));
+          setUser(parsed);
+          applyFavourites(parsed?.favourites);
         } catch {}
       }
       if (l) setLangState(l as Lang);
@@ -126,6 +161,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setSession = useCallback(async (newToken: string, newUser: User) => {
     setToken(newToken);
     setUser(newUser);
+    applyFavourites(newUser.favourites);
     await storage.secureSet(STORAGE_TOKEN, newToken);
     await storage.setItem(STORAGE_USER, JSON.stringify(newUser));
     if (newUser.language) {
@@ -136,13 +172,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCurrencyState(newUser.currency);
       await storage.setItem(STORAGE_CURRENCY, newUser.currency);
     }
-  }, []);
+  }, [applyFavourites]);
 
   const clearSession = useCallback(async () => {
     setToken(null);
     setUser(null);
     setCartCount(0);
     setCartQtyMap({});
+    setFavIds({});
     setSelectedAddress(null);
     setAppliedCoupon(null);
     await storage.secureRemove(STORAGE_TOKEN);
@@ -193,12 +230,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCartCount,
       cartQtyMap,
       applyCart,
+      favIds,
+      applyFavourites,
       selectedAddress,
       setSelectedAddress,
       appliedCoupon,
       setAppliedCoupon,
     }),
-    [ready, onboarded, setOnboarded, token, user, setSession, clearSession, refreshUser, lang, setLang, currency, setCurrency, t, cartCount, cartQtyMap, applyCart, selectedAddress, appliedCoupon],
+    [ready, onboarded, setOnboarded, token, user, setSession, clearSession, refreshUser, lang, setLang, currency, setCurrency, t, cartCount, cartQtyMap, applyCart, favIds, applyFavourites, selectedAddress, appliedCoupon],
   );
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;

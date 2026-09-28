@@ -5,38 +5,43 @@
  * unit/weight, red "X% OFF" + strikethrough MRP when available, bold price,
  * and an ADD/stepper button anchored bottom-right.
  */
-import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api, resolveImageUrl, type Category, type Product } from "@/src/lib/api";
+import { discountInfo, isLowStock } from "@/src/lib/product";
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { useCartActions } from "@/src/hooks/use-cart-actions";
 import { ProductAddButton } from "@/src/components/product-add-button";
+import { FavouriteHeart } from "@/src/components/favourite-heart";
 import { FloatingCartBar } from "@/src/components/floating-cart-bar";
 import { colors, radius, spacing } from "@/src/theme";
 
 const NUM_COLS = 3;
 
-function discountInfo(p: Product): { pct: number; struckLek: number } | null {
-  // 1) Explicit MRP (original price) set in admin → % off vs selling price.
-  if (p.mrp_lek && p.mrp_lek > p.price_lek) {
-    return {
-      pct: Math.round(((p.mrp_lek - p.price_lek) / p.mrp_lek) * 100),
-      struckLek: p.mrp_lek,
-    };
+type SortKey = "relevance" | "price_asc" | "price_desc" | "discount";
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: "relevance", label: "Recommended" },
+  { key: "price_asc", label: "Price: Low to High" },
+  { key: "price_desc", label: "Price: High to Low" },
+  { key: "discount", label: "Discount" },
+];
+
+function sortProducts(items: Product[], key: SortKey): Product[] {
+  const arr = [...items];
+  switch (key) {
+    case "price_asc":
+      return arr.sort((a, b) => a.price_lek - b.price_lek);
+    case "price_desc":
+      return arr.sort((a, b) => b.price_lek - a.price_lek);
+    case "discount":
+      return arr.sort((a, b) => (discountInfo(b)?.pct || 0) - (discountInfo(a)?.pct || 0));
+    default:
+      return arr;
   }
-  // 2) Percentage discount set in admin → original price is derived so the
-  //    current selling price = original × (1 − pct/100). Display-only; the
-  //    amount charged stays `price_lek`.
-  const d = Number(p.discount || 0);
-  if (d > 0 && d < 100) {
-    const original = p.price_lek / (1 - d / 100);
-    return { pct: Math.round(d), struckLek: Math.round(original) };
-  }
-  return null;
 }
 
 export default function CategoryScreen() {
@@ -48,7 +53,12 @@ export default function CategoryScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cat, setCat] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sortKey, setSortKey] = useState<SortKey>("relevance");
+  const [sortOpen, setSortOpen] = useState(false);
   const isSearch = slug === "search";
+
+  const sorted = useMemo(() => sortProducts(products, sortKey), [products, sortKey]);
+  const sortLabel = SORT_OPTIONS.find((o) => o.key === sortKey)?.label || "Sort";
 
   useEffect(() => {
     const load = async () => {
@@ -106,6 +116,16 @@ export default function CategoryScreen() {
           )}
         </View>
       </View>
+      {products.length > 0 ? (
+        <View style={styles.sortBar}>
+          <Text style={styles.sortCount}>{products.length} items</Text>
+          <Pressable style={styles.sortBtn} onPress={() => setSortOpen(true)} testID="cat-sort-btn">
+            <Ionicons name="swap-vertical" size={16} color={colors.textMain} />
+            <Text style={styles.sortBtnText} numberOfLines={1}>{sortLabel}</Text>
+            <Ionicons name="chevron-down" size={14} color={colors.textMuted} />
+          </Pressable>
+        </View>
+      ) : null}
       {products.length === 0 ? (
         <View style={styles.empty}>
           <Ionicons name="search" size={48} color={colors.textDisabled} />
@@ -113,7 +133,7 @@ export default function CategoryScreen() {
         </View>
       ) : (
         <FlatList
-          data={products}
+          data={sorted}
           keyExtractor={(p) => p.id}
           numColumns={NUM_COLS}
           columnWrapperStyle={{ gap: 8, paddingHorizontal: spacing.md }}
@@ -137,6 +157,12 @@ export default function CategoryScreen() {
                   ) : (
                     <Text style={styles.imgEmoji}>{item.image_emoji}</Text>
                   )}
+                  <FavouriteHeart productId={item.id} size={16} style={styles.heart} />
+                  {isLowStock(item) ? (
+                    <View style={styles.lowStock}>
+                      <Text style={styles.lowStockText}>Only few left</Text>
+                    </View>
+                  ) : null}
                 </View>
 
                 {/* Name — 2 lines max */}
@@ -184,6 +210,32 @@ export default function CategoryScreen() {
         />
       )}
       <FloatingCartBar bottomInset={Math.max(16, insets.bottom + 12)} />
+
+      <Modal visible={sortOpen} transparent animationType="slide" onRequestClose={() => setSortOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setSortOpen(false)} />
+        <View style={[styles.sheet, { paddingBottom: Math.max(spacing.lg, insets.bottom + 12) }]}>
+          <Text style={styles.sheetTitle}>Sort by</Text>
+          {SORT_OPTIONS.map((opt) => {
+            const active = opt.key === sortKey;
+            return (
+              <Pressable
+                key={opt.key}
+                onPress={() => {
+                  setSortKey(opt.key);
+                  setSortOpen(false);
+                }}
+                style={styles.sheetRow}
+                testID={`cat-sort-opt-${opt.key}`}
+              >
+                <Text style={[styles.sheetRowText, active && { color: colors.primary, fontWeight: "700" }]}>
+                  {opt.label}
+                </Text>
+                {active ? <Ionicons name="checkmark-circle" size={20} color={colors.primary} /> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -199,6 +251,28 @@ const styles = StyleSheet.create({
   sub: { fontSize: 12, color: colors.textMuted },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   emptyText: { fontSize: 15, color: colors.textMuted, marginTop: 8 },
+
+  sortBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.base,
+    paddingBottom: spacing.sm,
+  },
+  sortCount: { fontSize: 12, color: colors.textMuted, fontWeight: "600" },
+  sortBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    maxWidth: 200,
+  },
+  sortBtnText: { fontSize: 12, fontWeight: "700", color: colors.textMain },
 
   card: {
     flex: 1,
@@ -225,6 +299,17 @@ const styles = StyleSheet.create({
   },
   imgReal: { width: "88%", height: "88%" },
   imgEmoji: { fontSize: 40 },
+  heart: { position: "absolute", top: 4, right: 4, width: 26, height: 26, borderRadius: 13 },
+  lowStock: {
+    position: "absolute",
+    left: 0,
+    bottom: 0,
+    right: 0,
+    backgroundColor: "rgba(239,68,68,0.92)",
+    paddingVertical: 2,
+    alignItems: "center",
+  },
+  lowStockText: { color: "#fff", fontSize: 8, fontWeight: "800", letterSpacing: 0.2 },
   name: { fontSize: 12, fontWeight: "600", color: colors.textMain, lineHeight: 15, minHeight: 30 },
   unit: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
   metaRow: { flexDirection: "row", alignItems: "center", marginTop: 4, minHeight: 14 },
@@ -240,4 +325,21 @@ const styles = StyleSheet.create({
     bottom: -12,
     zIndex: 5,
   },
+  backdrop: { flex: 1, backgroundColor: colors.overlay },
+  sheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.lg,
+  },
+  sheetTitle: { fontSize: 18, fontWeight: "700", color: colors.textMain, marginBottom: spacing.sm },
+  sheetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  sheetRowText: { fontSize: 15, color: colors.textMain, fontWeight: "500" },
 });

@@ -14,7 +14,7 @@ import { colors, radius, spacing } from "@/src/theme";
 
 export default function Profile() {
   const router = useRouter();
-  const { t, user, lang, setLang, currency, setCurrency, clearSession, refreshUser } = useApp();
+  const { t, user, lang, setLang, currency, setCurrency, clearSession, refreshUser, favIds } = useApp();
   const [showLangs, setShowLangs] = useState(false);
   const [showCurs, setShowCurs] = useState(false);
 
@@ -101,6 +101,13 @@ export default function Profile() {
         </Section>
 
         <Section title="Account">
+          <Row
+            icon="heart"
+            label="Favourites"
+            value={`${Object.keys(favIds).length}`}
+            onPress={() => router.push("/favourites")}
+            testID="profile-fav-row"
+          />
           <Row
             icon="location"
             label={t("saved_addresses")}

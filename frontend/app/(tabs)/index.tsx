@@ -8,9 +8,11 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api, resolveImageUrl, type Category, type Product } from "@/src/lib/api";
+import { discountInfo, isLowStock } from "@/src/lib/product";
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { useCartActions } from "@/src/hooks/use-cart-actions";
 import { ProductAddButton } from "@/src/components/product-add-button";
+import { FavouriteHeart } from "@/src/components/favourite-heart";
 import { AnimatedPromoBanner } from "@/src/components/animated-promo-banner";
 import { OffersCarousel } from "@/src/components/offers-carousel";
 import { colors, radius, spacing } from "@/src/theme";
@@ -207,6 +209,7 @@ function ProductCard({
   onDec: () => void;
   onPress: () => void;
 }) {
+  const disc = discountInfo(p);
   return (
     <Pressable style={styles.prodCard} onPress={onPress} testID={`product-card-${p.id}`}>
       <View style={styles.prodImage}>
@@ -215,6 +218,12 @@ function ProductCard({
         ) : (
           <Text style={styles.prodEmoji}>{p.image_emoji}</Text>
         )}
+        <FavouriteHeart productId={p.id} size={16} style={styles.prodHeart} />
+        {isLowStock(p) ? (
+          <View style={styles.prodLowStock}>
+            <Text style={styles.prodLowStockText}>Only few left</Text>
+          </View>
+        ) : null}
         <View style={styles.prodImageBtn}>
           <ProductAddButton
             qty={qty}
@@ -229,8 +238,21 @@ function ProductCard({
       <Text style={styles.prodName} numberOfLines={2}>
         {p.name}
       </Text>
-      <Text style={styles.prodUnit}>{p.unit || p.weight}</Text>
-      <Text style={styles.prodPrice}>{formatPrice(p.price_lek, p.price_eur, currency)}</Text>
+      {/* Meta row: discount left, weight right (weight stays right-aligned). */}
+      <View style={styles.prodMetaRow}>
+        {disc ? <Text style={styles.prodOff}>{disc.pct}% OFF</Text> : null}
+        <Text style={[styles.prodUnit, styles.prodUnitRight]} numberOfLines={1}>
+          {p.unit || p.weight}
+        </Text>
+      </View>
+      <View style={styles.prodPriceRow}>
+        {disc ? (
+          <Text style={styles.prodMrp} numberOfLines={1}>
+            {formatPrice(disc.struckLek, disc.struckLek / 100, currency)}
+          </Text>
+        ) : null}
+        <Text style={styles.prodPrice}>{formatPrice(p.price_lek, p.price_eur, currency)}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -328,16 +350,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 8,
     position: "relative",
+    overflow: "hidden",
   },
   prodImageBtn: {
     position: "absolute",
     right: 6,
     bottom: 6,
   },
+  prodHeart: { position: "absolute", top: 4, left: 4, width: 26, height: 26, borderRadius: 13 },
+  prodLowStock: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(239,68,68,0.92)",
+    paddingVertical: 2,
+    alignItems: "center",
+  },
+  prodLowStockText: { color: "#fff", fontSize: 9, fontWeight: "800", letterSpacing: 0.2 },
   prodEmoji: { fontSize: 44 },
   prodImg: { width: "100%", height: "100%" },
   prodName: { fontSize: 13, fontWeight: "600", color: colors.textMain, lineHeight: 16 },
   prodUnit: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  prodUnitRight: { marginTop: 0, marginLeft: "auto" },
+  prodMetaRow: { flexDirection: "row", alignItems: "center", marginTop: 4, minHeight: 14 },
+  prodOff: { fontSize: 11, fontWeight: "800", color: colors.error, letterSpacing: 0.2 },
+  prodPriceRow: { flexDirection: "row", alignItems: "baseline", gap: 5, marginTop: 3 },
+  prodMrp: { fontSize: 11, color: colors.textMuted, textDecorationLine: "line-through" },
   prodFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },
   prodPrice: { fontSize: 14, fontWeight: "700", color: colors.textMain },
   addBtn: {

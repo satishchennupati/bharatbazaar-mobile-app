@@ -8,9 +8,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api, resolveImageUrl, type Product } from "@/src/lib/api";
+import { isLowStock } from "@/src/lib/product";
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { useCartActions } from "@/src/hooks/use-cart-actions";
 import { ProductAddButton } from "@/src/components/product-add-button";
+import { FavouriteHeart } from "@/src/components/favourite-heart";
 import { colors, radius, spacing } from "@/src/theme";
 
 export default function ProductDetail() {
@@ -74,6 +76,7 @@ export default function ProductDetail() {
           <Pressable onPress={() => router.back()} style={styles.back} testID="prod-back">
             <Ionicons name="chevron-back" size={24} color={colors.textMain} />
           </Pressable>
+          <FavouriteHeart productId={product.id} size={22} style={styles.headerHeart} />
         </View>
         <View style={styles.hero}>
           {product.image_url ? (
@@ -83,7 +86,12 @@ export default function ProductDetail() {
           )}
         </View>
         <View style={styles.body}>
-          <Text style={styles.unitChip}>{product.unit || product.weight || product.sku}</Text>
+          <View style={styles.chipRow}>
+            <Text style={styles.unitChip}>{product.unit || product.weight || product.sku}</Text>
+            {isLowStock(product) ? (
+              <Text style={styles.lowStockChip}>Only {product.stock} left</Text>
+            ) : null}
+          </View>
           <Text style={styles.name} testID="prod-name">{product.name}</Text>
           {product.brand ? <Text style={styles.brand}>by {product.brand}</Text> : null}
           <View style={styles.priceRow}>
@@ -130,14 +138,17 @@ export default function ProductDetail() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
-  headerBar: { padding: spacing.base },
+  headerBar: { padding: spacing.base, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   back: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  headerHeart: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: colors.border },
   hero: { height: 280, alignItems: "center", justifyContent: "center", backgroundColor: colors.primaryLight, marginHorizontal: spacing.lg, borderRadius: radius.xl },
   heroEmoji: { fontSize: 140 },
   heroImg: { width: "80%", height: "80%" },
   brand: { fontSize: 13, color: colors.textMuted, marginTop: 4, fontWeight: "500" },
   body: { padding: spacing.lg },
+  chipRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   unitChip: { backgroundColor: colors.surfaceMuted, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, fontSize: 11, color: colors.textMuted, fontWeight: "600" },
+  lowStockChip: { backgroundColor: colors.error, color: "#fff", alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, fontSize: 11, fontWeight: "700" },
   name: { fontSize: 24, fontWeight: "700", color: colors.textMain, marginTop: 12, letterSpacing: -0.4 },
   price: { fontSize: 28, fontWeight: "700", color: colors.primary },
   priceRow: { flexDirection: "row", alignItems: "baseline", gap: 8, marginTop: 8 },

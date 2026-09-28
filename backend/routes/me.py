@@ -1,13 +1,14 @@
-"""Profile + addresses (/me, /me/addresses)."""
+"""Profile + addresses + favourites (/me, /me/addresses, /me/favourites)."""
 from __future__ import annotations
 
 import secrets
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from config import STATIC_DIR
 from db import db
-from models import AddressIn, MeUpdate, UpdateProfileIn
+from models import AddressIn, MeUpdate, Product, UpdateProfileIn
 from security import get_current_user
 from services.images import save_data_url_as_image
 
@@ -100,3 +101,37 @@ async def touch_address(addr_id: str, user: dict = Depends(get_current_user)):
 async def remove_address(addr_id: str, user: dict = Depends(get_current_user)):
     await db.users.update_one({"id": user["id"]}, {"$pull": {"addresses": {"id": addr_id}}})
     return {"ok": True}
+
+
+# ---------- Favourites ----------
+@router.get("/me/favourites", response_model=List[Product])
+async def list_favourites(user: dict = Depends(get_current_user)):
+    """Return the user's saved products, most-recently-added first."""
+    fav_ids = list(user.get("favourites") or [])
+    if not fav_ids:
+        return []
+    docs = await db.products.find({"id": {"$in": fav_ids}}, {"_id": 0}).to_list(500)
+    by_id = {d["id"]: d for d in docs}
+    return [by_id[i] for i in fav_ids if i in by_id]
+
+
+@router.post("/me/favourites/{product_id}")
+async def add_favourite(product_id: str, user: dict = Depends(get_current_user)):
+    exists = await db.products.find_one({"id": product_id}, {"_id": 1})
+    if not exists:
+        raise HTTPException(status_code=404, detail="Product not found")
+    # Keep most-recent-first and avoid duplicates.
+    await db.users.update_one({"id": user["id"]}, {"$pull": {"favourites": product_id}})
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$push": {"favourites": {"$each": [product_id], "$position": 0}}},
+    )
+    u = await db.users.find_one({"id": user["id"]}, {"favourites": 1})
+    return {"favourites": list(u.get("favourites") or [])}
+
+
+@router.delete("/me/favourites/{product_id}")
+async def remove_favourite(product_id: str, user: dict = Depends(get_current_user)):
+    await db.users.update_one({"id": user["id"]}, {"$pull": {"favourites": product_id}})
+    u = await db.users.find_one({"id": user["id"]}, {"favourites": 1})
+    return {"favourites": list(u.get("favourites") or [])}

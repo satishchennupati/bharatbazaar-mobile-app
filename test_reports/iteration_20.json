@@ -1,0 +1,80 @@
+{
+  "summary": "Iter 20 — Tested 4 new features (Home discounts, Sort & Filter, Save Favourites, Low Stock tag). Backend favourites endpoints ALL PASS (10/10 pytest — auth 401 checks, add, list, delete, non-existent 404, most-recent-first ordering, idempotent duplicate move-to-top). Frontend mostly good BUT found TWO REAL BUGS in the favourites hydration flow: (1) The /favourites screen filters its fetched list by the in-memory favIds context, so if you open the screen without Home having hydrated favIds first (e.g. deep-link or hard reload landing on profile), it shows 'No favourites yet' even though backend returns saved products; (2) The Profile 'Favourites' row count is bound to Object.keys(favIds).length, so it also reads 0 on any entry point that isn't Home. Discount badge, low-stock tag, sort bar (Recommended/Price asc/desc/Discount) and the heart toggle itself all work correctly on the category screen, and product detail shows 'Only 8 left' + 29% OFF + heart in header.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "/favourites screen",
+        "issue": "visible = products.filter((p) => favIds[p.id]) — filters the backend-fetched list by in-memory context. On any hard-nav / deep-link into /favourites (e.g. Profile → Favourites when Profile was opened via deep-link and Home never mounted), favIds is empty, so 'visible' is [] and the empty state is shown even though the backend already returned saved products. Reference: app/favourites.tsx:46",
+        "testID": "fav-prod-*",
+        "priority": "HIGH"
+      },
+      {
+        "component": "Profile 'Favourites' row count",
+        "issue": "Uses `${Object.keys(favIds).length}` — reads 0 whenever the app context wasn't hydrated by Home. Should either call /me/favourites on Profile mount, or use user.favourites, or persist favIds. Reference: app/(tabs)/profile.tsx:107",
+        "testID": "profile-fav-row",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Favourite persistence across reload",
+        "issue": "applyFavourites() only updates in-memory state; it never writes back to storage (STORAGE_USER) or triggers a refresh. Only Home hydrates favIds via GET /me/favourites in its load(). Result: after a hard reload, any screen other than Home shows favIds={} until the user visits Home. Reference: src/store/app-context.tsx:108-114, src/hooks/use-favourites.ts:64",
+        "affected_testIDs": ["fav-prod-*", "profile-fav-row", "fav-toggle-*"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Home best sellers",
+        "issues": [
+          "None of the first 20 products returned by /api/products?limit=20 (Home 'Best sellers' feed) currently have a discount or MRP set, so no '% OFF' badge appears on Home even though the code path renders it correctly (verified via category screen). Consider seeding one discounted best-seller so the Home feature is discoverable. Reference: app/(tabs)/index.tsx:246-259"
+        ]
+      },
+      {
+        "screen": "Home best sellers",
+        "issues": [
+          "No low-stock product in the top-20 best-seller feed either, so 'Only few left' tag isn't visible on Home. The code and CSS are correct — verified on category screen and product detail. Just a data-visibility observation."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_favourites.py (10 tests, all pass)",
+    "/app/test_reports/pytest/iter20_favourites.xml",
+    "/app/test_reports/iter20_home.jpeg",
+    "/app/test_reports/iter20_search.jpeg (bhujia · 4, sort bar visible)",
+    "/app/test_reports/iter20_sort_sheet.jpeg (4 sort options)",
+    "/app/test_reports/iter20_detail.jpeg (Haldiram 29% OFF + heart in header)",
+    "/app/test_reports/iter20_favscreen.jpeg (empty state shown despite backend having item — bug)"
+  ],
+  "action_items": [
+    "HIGH: In app/favourites.tsx, stop filtering the fetched list by favIds. Either render `products` directly, or when the heart is toggled off, remove the item from local `products` state as well. Current filter breaks deep-link entry.",
+    "HIGH: In src/hooks/use-favourites.ts (and/or app-context), when applyFavourites is called, also persist to STORAGE_USER (update user.favourites) so favIds survives hard reloads without depending on Home mounting first.",
+    "MEDIUM: On Profile mount OR in app-context bootstrap when a token exists, call GET /me/favourites once so profile-fav-row count and any deep-link entry starts with the correct favIds. Currently only Home does this.",
+    "LOW: Seed at least one discounted best-seller and one low-stock best-seller into /api/products?limit=20 so the Home '% OFF' badge and 'Only few left' tag are actually discoverable on the landing screen (feature works, just no matching data).",
+    "LOW: Console shows repeated warnings — 'shadow* style props are deprecated. Use boxShadow' and 'props.pointerEvents is deprecated. Use style.pointerEvents'. Not blocking, but worth cleaning up."
+  ],
+  "critical_code_review_comments": [
+    "Backend /api/me/favourites is clean: pull-then-push-at-position-0 gives idempotent most-recent-first ordering (routes/me.py:118-130), 404 for missing product, projects out _id, uses Depends(get_current_user) so 401 is automatic.",
+    "src/lib/product.ts discountInfo/isLowStock helpers are correctly used from all four screens (home, category, favourites, product detail). LOW_STOCK_THRESHOLD=10 matches the spec (1-10).",
+    "src/components/favourite-heart.tsx correctly calls e.stopPropagation() so tapping the heart doesn't also open the product — verified in-app.",
+    "Sort options match spec exactly (relevance/price_asc/price_desc/discount) and sorting logic in app/category/[slug].tsx:33-45 is stable & non-mutating (spread before sort).",
+    "The Favourite persistence bug is a real regression risk — new users won't see their saved items when returning to the app if their first stop after re-open is Profile → Favourites instead of Home."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_favourites.py (new pytest file, 10 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 pytest — favourites CRUD, auth, 404)",
+    "frontend": "70% — sort/filter, discount, low-stock, heart toggle all work; favourites list & profile count broken on non-Home entry (2 bugs)."
+  },
+  "seed_data_creation": "None. Test favourites were created & cleaned up per module via pytest teardown and Playwright cleanup steps. quick-user account left in clean state.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Concrete repro: (1) Log in as +355 695808480 / 123456. (2) On category screen /category/search?q=bhujia, click heart on Haldiram Aloo Bhujia (p-38a659211455) → POST /me/favourites/p-38a659211455 returns 200 and heart turns red. (3) Do a hard reload/deep-link into /profile (NOT via router push from Home) → 'Favourites' row shows 0 instead of 1. (4) Tap it to open /favourites → 'No favourites yet' empty state is shown, even though GET /me/favourites returns the Haldiram product. Root cause: favIds context is only hydrated by Home's load(); /favourites additionally filters by that context before rendering. Backend is correct; issue is purely frontend state hydration. Also useful: Haldiram (p-38a659211455) has 29% OFF via MRP path, and Ganpati Rose Water (p-2cf88173f22a) / Kewra Water (p-841b4dff48e3) both have stock=8 — good for low-stock UI testing on detail screen (chip renders 'Only 8 left').",
+  "rca_of_issue": "Bug 1 (favourites empty state despite saved items): app/favourites.tsx line 46 does `visible = products.filter((p) => favIds[p.id])`. products comes from /me/favourites (correct), but favIds comes from app-context which is only populated by Home's load() effect (index.tsx:57). On any hard-nav that bypasses Home, favIds stays {} and every fetched product is filtered out → 'No favourites yet'. Bug 2 (profile count): profile.tsx line 107 reads Object.keys(favIds).length — same stale-context issue. Fixes are simple: (a) remove the favIds filter in favourites.tsx (just render `products`); (b) hydrate favIds in app-context bootstrap when a token is present, OR persist favIds in storage in applyFavourites; (c) optionally, when the heart is unfavourited from within /favourites, also remove the item from local products state so it disappears immediately (currently that relied on the buggy filter)."
+}
