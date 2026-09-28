@@ -15,8 +15,11 @@ import { AnimatedPromoBanner } from "@/src/components/animated-promo-banner";
 import { OffersCarousel } from "@/src/components/offers-carousel";
 import { colors, radius, spacing } from "@/src/theme";
 
-type PromoStrip = {
-  id: string;
+// Pale tinted backgrounds for the category image tiles — cycles through the
+// grid so adjacent tiles feel distinct (Blinkit-style).
+const TILE_BACKGROUNDS = ["#F1F7EE", "#FDF3E7", "#F0F4FA", "#FAF0F0"];
+
+type PromoStrip = {  id: string;
   active: boolean;
   promo_headline?: string;
   promo_amount?: string;
@@ -127,8 +130,8 @@ export default function Home() {
             <Text style={styles.sectionTitle}>{t("shop_by_category")}</Text>
             <Text style={styles.sectionSub}>{t("select_category")}</Text>
             <View style={styles.catGrid}>
-              {cats.slice(0, 8).map((c) => (
-                <CategoryTile key={c.id} cat={c} onPress={() => !c.coming_soon && router.push(`/category/${c.slug}`)} t={t} />
+              {cats.slice(0, 8).map((c, i) => (
+                <CategoryTile key={c.id} cat={c} tint={TILE_BACKGROUNDS[i % TILE_BACKGROUNDS.length]} onPress={() => !c.coming_soon && router.push(`/category/${c.slug}`)} t={t} />
               ))}
             </View>
             <Pressable onPress={() => router.push("/(tabs)/categories")} style={styles.viewAll} testID="home-view-all-cats">
@@ -154,37 +157,35 @@ export default function Home() {
   );
 }
 
-function CategoryTile({ cat, onPress, t }: { cat: Category; onPress: () => void; t: any }) {
+function CategoryTile({ cat, tint, onPress, t }: { cat: Category; tint: string; onPress: () => void; t: any }) {
   const disabled = cat.coming_soon;
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.catTile, disabled && styles.catTileDisabled]}
+      style={styles.catTile}
       disabled={disabled}
       testID={`home-cat-${cat.slug}`}
     >
-      {disabled && (
-        <View style={styles.comingSoonBadge}>
-          <Text style={styles.comingSoonText}>{t("coming_soon")}</Text>
-        </View>
-      )}
-      {cat.image_url ? (
-        <Image
-          source={{ uri: resolveImageUrl(cat.image_url) }}
-          style={[styles.catImage, disabled && { opacity: 0.35 }]}
-          resizeMode="cover"
-        />
-      ) : (
-        <Text style={[styles.catEmoji, disabled && { opacity: 0.35 }]}>{cat.emoji}</Text>
-      )}
+      {/* Square tinted image tile — Blinkit-style, image fills the tile */}
+      <View style={[styles.catImageTile, { backgroundColor: tint }, disabled && styles.catImageTileDisabled]}>
+        {cat.image_url ? (
+          <Image
+            source={{ uri: resolveImageUrl(cat.image_url) }}
+            style={[styles.catImage, disabled && { opacity: 0.4 }]}
+            resizeMode="cover"
+          />
+        ) : (
+          <Text style={[styles.catEmoji, disabled && { opacity: 0.4 }]}>{cat.emoji}</Text>
+        )}
+        {disabled && (
+          <View style={styles.comingSoonBadge}>
+            <Text style={styles.comingSoonText}>{t("coming_soon")}</Text>
+          </View>
+        )}
+      </View>
       <Text style={[styles.catName, disabled && { color: colors.textDisabled }]} numberOfLines={2}>
         {cat.name}
       </Text>
-      {!disabled && (
-        <Text style={styles.catCount}>
-          {cat.product_count} {t("items")}
-        </Text>
-      )}
     </Pressable>
   );
 }
@@ -273,31 +274,35 @@ const styles = StyleSheet.create({
   promoText: { color: "#fff", fontSize: 13, fontWeight: "600", flex: 1, lineHeight: 18 },
   sectionTitle: { fontSize: 22, fontWeight: "700", color: colors.textMain, marginTop: spacing.lg, letterSpacing: -0.4 },
   sectionSub: { fontSize: 13, color: colors.textMuted, marginTop: 2, marginBottom: spacing.md },
-  catGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, justifyContent: "space-between" },
+  catGrid: { flexDirection: "row", flexWrap: "wrap", columnGap: spacing.sm, rowGap: spacing.md },
   catTile: {
-    width: "47%",
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    padding: spacing.base,
-    minHeight: 110,
+    width: "22%",
+    alignItems: "stretch",
   },
-  catTileDisabled: { backgroundColor: colors.surfaceMuted, borderStyle: "dashed", borderColor: colors.borderDashed },
+  catImageTile: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  catImageTileDisabled: { borderStyle: "dashed", borderColor: colors.borderDashed },
   comingSoonBadge: {
     position: "absolute",
-    top: 8,
-    right: 8,
+    top: 6,
+    right: 6,
     backgroundColor: colors.comingSoonBadge,
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 4,
   },
-  comingSoonText: { color: "#fff", fontSize: 9, fontWeight: "700", letterSpacing: 0.5 },
-  catEmoji: { fontSize: 30, marginBottom: 6 },
-  catImage: { width: "100%", height: 64, borderRadius: 12, marginBottom: 6, backgroundColor: colors.surfaceMuted },
-  catName: { fontSize: 14, fontWeight: "700", color: colors.textMain, lineHeight: 18 },
-  catCount: { fontSize: 11, color: colors.primary, fontWeight: "700", marginTop: 4 },
+  comingSoonText: { color: "#fff", fontSize: 8, fontWeight: "800", letterSpacing: 0.4 },
+  catEmoji: { fontSize: 34 },
+  catImage: { width: "100%", height: "100%" },
+  catName: { fontSize: 11, fontWeight: "600", color: colors.textMain, lineHeight: 14, textAlign: "center", marginTop: 6, paddingHorizontal: 2 },
   viewAll: {
     flexDirection: "row",
     alignItems: "center",
