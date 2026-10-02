@@ -38,7 +38,7 @@ async def shipping_quote(payload: ShippingQuoteIn, user: dict = Depends(get_curr
     enriched = await enrich_cart(cart)
     items = enriched.get("items") or []
     subtotal = float(enriched.get("subtotal_lek") or 0.0)
-    quote = quote_for_cart(items, subtotal, payload.address or {})
+    quote = await quote_for_cart(items, subtotal, payload.address or {})
     return {
         "subtotal_lek": subtotal,
         **quote,
@@ -76,7 +76,7 @@ async def place_order(payload: PlaceOrderIn, user: dict = Depends(get_current_us
 
     # Zone- and weight-based shipping. Use the *pre-shipping* payable amount as
     # the "bill" for free-shipping check (matches what the user sees).
-    ship_quote = quote_for_cart(items_with_cat, payable_pre_shipping, payload.address.model_dump())
+    ship_quote = await quote_for_cart(items_with_cat, payable_pre_shipping, payload.address.model_dump())
     delivery_fee_lek = float(ship_quote["fee_lek"])
     delivery_fee_eur = round(delivery_fee_lek / LEK_PER_EUR, 2)
     total_lek = round(payable_pre_shipping + delivery_fee_lek, 2)

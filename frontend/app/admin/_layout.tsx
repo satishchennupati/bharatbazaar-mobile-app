@@ -19,6 +19,7 @@ const TABS = [
   { key: "orders", label: "Orders", icon: "receipt-outline" as const, path: "/admin/orders" },
   { key: "products", label: "Products", icon: "cube-outline" as const, path: "/admin/products" },
   { key: "offers", label: "Offers", icon: "pricetag-outline" as const, path: "/admin/offers" },
+  { key: "settings", label: "Shipping", icon: "car-outline" as const, path: "/admin/settings" },
 ];
 
 export default function AdminLayout() {

@@ -17,6 +17,7 @@ from routes import (
     admin_offers,
     admin_orders,
     admin_products,
+    admin_settings,
     auth,
     cart,
     catalog,
@@ -44,6 +45,7 @@ api.include_router(admin_auth.router)
 api.include_router(admin_orders.router)
 api.include_router(admin_products.router)
 api.include_router(admin_offers.router)
+api.include_router(admin_settings.router)
 
 app.include_router(api)
 app.mount("/api/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

@@ -1,0 +1,33 @@
+{
+  "summary": "Admin-configurable shipping settings + zone-aware checkout verified end-to-end. Backend: 14/14 pytest tests pass (public GET, admin GET/PUT with 401/403 for non-admin, partial updates persist, negative values rejected by Pydantic ge=0, Tirana vs Rest-of-Albania zone thresholds at 1440 L cart, dynamic re-pricing when settings change, place-order no regression after quote_for_cart became async for both Tirana free + Durres paid). Admin UI: all 6 fields render (free_min_tirana_lek=1000, free_min_outside_lek=2000, base_tirana_lek=200, base_outside_lek=300, free_weight_kg=2, extra_per_kg_lek=50); edited Tirana threshold to 1500, 'Saved! Changes are live at checkout.' banner shown, value persists after page reload, restored to default. Cart hint: with 480 L cart (below Tirana 1000), the `cart-free-delivery-hint` renders 'Add 520 L more for FREE delivery' + sub-note 'within Tirana city limits' (uses configured Tirana threshold, not hardcoded). Checkout zone enforcement: Tirana address at 1440 L shows `ship-free-hint` 'You qualify for free shipping (order over 1000 L). 🎉' as expected. Deprecated packages / React Native issues: none newly introduced (one existing shadow* style-prop deprecation warning in theme — pre-existing, not in scope).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_shipping_settings_iter21.py",
+    "/app/test_reports/pytest/iter21_shipping.xml"
+  ],
+  "action_items": [
+    "Optional (not blocking): Admin UI could add a small 'Reset to defaults' button for convenience.",
+    "Pre-existing (not introduced this iteration): React Native 'shadow*' style props deprecation warning on the admin sidebar — migrate to 'boxShadow' when touching theme next."
+  ],
+  "critical_code_review_comments": [
+    "shipping.quote_for_cart is correctly awaited in both /api/orders/shipping-quote and /api/orders (place-order). No sync-call regression.",
+    "ShippingSettingsIn uses Field(None, ge=0) so negative values 422 as expected; partial updates merge via services.settings.update_shipping_settings.",
+    "/api/shipping-settings is public (no auth) — fine for client-side hint; does not leak sensitive data.",
+    "detect_zone falls back to 'outside' when city is empty/null — safe default (customer pays higher fee rather than mistakenly getting free).",
+    "Cart free-delivery hint only renders when !isFree (by design); uses tiranaFreeMin fetched from /api/shipping-settings with DEFAULT_TIRANA_FREE_MIN=1000 as fallback.",
+    "Checkout re-fetches quote whenever city/state/countryCode/subLek/couponDiscLek change — good UX."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "seed_data_creation": "During tests, cart was seeded with 'Haldiram Bhujia 400g' @ 480 L (qty 1 & 3) for the logged-in quick-user-001. Shipping settings were mutated during tests and reset to defaults (1000/2000/200/300/2/50) by an autouse pytest fixture. Verified via final GET /api/shipping-settings that defaults are restored.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All backend endpoints for admin shipping settings and zone-aware quote are solid. Tests in /app/backend/tests/test_shipping_settings_iter21.py are reusable regression tests. Login UI note: the customer Login button on /login is a Pressable without a testID — in Playwright it does not match page.locator('button') or role=button; the working approach is page.mouse.click(195, 300) after filling the password at the standard 390x844 mobile viewport. For logged-in flows, read the token from localStorage key 'mbc_token' (JSON-stringified) and seed cart via REST API before navigating to screens.",
+  "rca_of_issue": "N/A — no bugs found. Feature works as designed."
+}

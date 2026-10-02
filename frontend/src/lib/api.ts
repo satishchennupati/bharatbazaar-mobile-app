@@ -58,6 +58,13 @@ export const api = {
     return handle<T>(res);
   },
 
+  async put<T>(path: string, body: any, withAuth = true): Promise<T> {
+    const h: Record<string, string> = { "Content-Type": "application/json" };
+    if (withAuth) Object.assign(h, await authHeaders());
+    const res = await fetch(`${API}${path}`, { method: "PUT", headers: h, body: JSON.stringify(body ?? {}) });
+    return handle<T>(res);
+  },
+
   async del<T>(path: string, withAuth = true): Promise<T> {
     const h: Record<string, string> = { "Content-Type": "application/json" };
     if (withAuth) Object.assign(h, await authHeaders());

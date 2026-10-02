@@ -280,3 +280,15 @@ class OfferPatch(BaseModel):
 class CouponValidateIn(BaseModel):
     code: str
     subtotal_lek: float = 0.0
+
+
+# ---------- Shipping settings (Admin-configurable) ----------
+class ShippingSettingsIn(BaseModel):
+    """Partial update of the store shipping configuration. All optional so the
+    admin can tweak individual fields."""
+    free_min_tirana_lek: Optional[float] = Field(None, ge=0)
+    free_min_outside_lek: Optional[float] = Field(None, ge=0)
+    base_tirana_lek: Optional[float] = Field(None, ge=0)
+    base_outside_lek: Optional[float] = Field(None, ge=0)
+    free_weight_kg: Optional[float] = Field(None, ge=0)
+    extra_per_kg_lek: Optional[float] = Field(None, ge=0)

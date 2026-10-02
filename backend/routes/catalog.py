@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from db import db
 from models import BannerOut, Category, Product
+from services.settings import get_shipping_settings
 
 router = APIRouter()
 
@@ -15,6 +16,12 @@ router = APIRouter()
 @router.get("/health")
 async def health():
     return {"status": "ok", "service": "bharat_bazaar", "ts": datetime.now(timezone.utc).isoformat()}
+
+
+@router.get("/shipping-settings")
+async def shipping_settings():
+    """Public read of the store shipping config (used by the cart free-delivery hint)."""
+    return await get_shipping_settings()
 
 
 @router.get("/banner", response_model=BannerOut)

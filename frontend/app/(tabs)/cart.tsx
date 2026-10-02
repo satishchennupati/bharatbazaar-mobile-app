@@ -11,8 +11,8 @@ import { api, resolveImageUrl, type Cart } from "@/src/lib/api";
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { colors, radius, spacing } from "@/src/theme";
 
-const FREE_MIN_LEK = 2000;
 const LEK_PER_EUR = 100;
+const DEFAULT_TIRANA_FREE_MIN = 1000;
 
 export default function CartScreen() {
   const router = useRouter();
@@ -23,6 +23,16 @@ export default function CartScreen() {
   const [couponInput, setCouponInput] = useState("");
   const [couponBusy, setCouponBusy] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
+  const [tiranaFreeMin, setTiranaFreeMin] = useState<number>(DEFAULT_TIRANA_FREE_MIN);
+
+  useEffect(() => {
+    api
+      .get<{ free_min_tirana_lek: number }>("/shipping-settings")
+      .then((s) => {
+        if (typeof s?.free_min_tirana_lek === "number") setTiranaFreeMin(s.free_min_tirana_lek);
+      })
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -138,10 +148,10 @@ export default function CartScreen() {
   // address zone and cart weight). Here we only surface the free-shipping
   // threshold so users know how close they are to unlocking it.
   const netSubLek = subLek - couponDiscountLek;
-  const isFree = netSubLek >= FREE_MIN_LEK;
+  const isFree = netSubLek >= tiranaFreeMin;
   const totalLek = Math.max(0, netSubLek);
   const totalEur = Math.max(0, subEur - couponDiscountEur);
-  const needForFree = Math.max(0, FREE_MIN_LEK - netSubLek);
+  const needForFree = Math.max(0, tiranaFreeMin - netSubLek);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -163,9 +173,12 @@ export default function CartScreen() {
           {!isFree && (
             <View style={styles.deliveryHint} testID="cart-free-delivery-hint">
               <Ionicons name="rocket" size={14} color={colors.primary} />
-              <Text style={styles.deliveryHintText}>
-                Add {Math.round(needForFree)} L more for FREE delivery
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.deliveryHintText}>
+                  Add {Math.round(needForFree)} L more for FREE delivery
+                </Text>
+                <Text style={styles.deliveryHintNote}>within Tirana city limits</Text>
+              </View>
             </View>
           )}
           <FlatList
@@ -325,6 +338,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   deliveryHintText: { fontSize: 12, color: colors.primary, fontWeight: "600" },
+  deliveryHintNote: { fontSize: 10, color: colors.textMuted, fontWeight: "500", marginTop: 1 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.lg, gap: 8 },
   emptyTitle: { fontSize: 20, fontWeight: "700", color: colors.textMain, marginTop: 12 },
   emptySub: { fontSize: 14, color: colors.textMuted, textAlign: "center" },
