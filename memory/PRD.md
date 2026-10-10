@@ -72,3 +72,12 @@ A React Native Expo mobile app for **Bharat Bazaar** (companion to mybazaarcart.
 - `routes/`: catalog, auth, me, cart, orders, geo, offers, admin_auth, admin_orders, admin_products, admin_offers
 - `services/`: csv_import, cart, images, offers, seed
 
+
+## Catalog (v4 — Product Master, Oct 2026)
+- Full catalog REPLACED by Product Master Excel: 305 products across 7 top-level categories.
+- Categories: food(159), spices(85), rice_grain_flour(13), personal_care(17), household(26), pooja_needs(4), healthcare(1).
+- 3 category photos hosted at /api/static/categories/{food,spices,personal_care}.jpg
+- 282 product images localized to /api/static/products/<barcode>.jpg; 23 private Drive images => null (emoji fallback).
+- Pricing: price_lek=PRICE, mrp_lek=PRE-DISCOUNT (struck), discount=DISCOUNT% (badge), eur=lek/100.
+- Seed: SEED_VERSION v4-2026-10-master; imports backend/product_master.csv; services/seed.ensure_category_images() downloads the 3 photos idempotently.
+- Image downloader script: backend/scripts/download_product_images.py (re-run to localize remaining images if Drive files are later made public).

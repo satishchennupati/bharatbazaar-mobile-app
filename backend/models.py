@@ -29,6 +29,7 @@ class Product(BaseModel):
     mrp_lek: Optional[float] = None
     discount: float = 0.0
     sku: str = ""
+    subcategory: str = ""
     product_code: str = ""
     ean_barcode: str = ""
     stock: int = 0

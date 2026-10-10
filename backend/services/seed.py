@@ -4,13 +4,43 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from config import ROOT_DIR
+from config import ROOT_DIR, STATIC_DIR
 from db import db
 from seed_data import CATEGORIES_SEED, PRODUCTS_SEED, SEED_VERSION
 from security import hash_pw
-from services.csv_import import import_products_from_csv_text
+from services.csv_import import import_master_csv_text
 
 logger = logging.getLogger("bharat_bazaar")
+
+# User-supplied category photos (downloaded to static on first boot).
+CATEGORY_IMAGE_SOURCES = {
+    "spices": "https://customer-assets-0z36b82j.emergentagent.net/job_bharat-app-8/artifacts/cfcfc5f68bafc588_Spices.jpg.jpeg",
+    "food": "https://customer-assets-0z36b82j.emergentagent.net/job_bharat-app-8/artifacts/98ca63f7ee5fa071_FMCG%20Food.jpg.jpeg",
+    "personal_care": "https://customer-assets-0z36b82j.emergentagent.net/job_bharat-app-8/artifacts/a2317d9244b737ce_Personal%20Care.jpg.jpeg",
+}
+
+
+async def ensure_category_images():
+    """Download the 3 category photos into static/categories if missing and
+    point the category docs at them (idempotent)."""
+    import httpx
+
+    cat_dir = STATIC_DIR / "categories"
+    cat_dir.mkdir(parents=True, exist_ok=True)
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        for slug, url in CATEGORY_IMAGE_SOURCES.items():
+            fpath = cat_dir / f"{slug}.jpg"
+            if not fpath.exists() or fpath.stat().st_size < 500:
+                try:
+                    r = await client.get(url)
+                    if r.status_code == 200:
+                        fpath.write_bytes(r.content)
+                except Exception as e:
+                    logger.warning("Category image fetch failed for %s: %s", slug, e)
+            if fpath.exists():
+                await db.categories.update_one(
+                    {"slug": slug}, {"$set": {"image_url": f"/api/static/categories/{slug}.jpg"}}
+                )
 
 
 async def seed_all():
@@ -30,18 +60,16 @@ async def seed_all():
         logger.info("Seeded %d categories", len(CATEGORIES_SEED))
     prod_count = await db.products.count_documents({})
     if prod_count == 0:
-        csv_path = ROOT_DIR / "inventory_import.csv"
+        csv_path = ROOT_DIR / "product_master.csv"
         if csv_path.exists():
-            with open(csv_path, encoding="latin-1") as f:
+            with open(csv_path, encoding="utf-8") as f:
                 text = f.read()
-            result = await import_products_from_csv_text(text, replace=False)
-            logger.info("Imported %d products from CSV (skipped %d)", result["imported"], result["skipped"])
+            result = await import_master_csv_text(text, replace=False)
+            logger.info("Imported %d products from Product Master", result["inserted"])
         else:
-            await db.products.insert_many([dict(p) for p in PRODUCTS_SEED])
-            logger.info("Seeded %d sample products", len(PRODUCTS_SEED))
-            for c in CATEGORIES_SEED:
-                n = sum(1 for p in PRODUCTS_SEED if p["category_slug"] == c["slug"])
-                await db.categories.update_one({"slug": c["slug"]}, {"$set": {"product_count": n}})
+            logger.warning("product_master.csv not found; no products seeded")
+    # Ensure category photos exist and are linked (idempotent).
+    await ensure_category_images()
     if need_reseed:
         await db.meta.update_one(
             {"key": "catalog_seed"},

@@ -7,7 +7,7 @@ import io
 import re
 from typing import Optional
 
-from config import LEK_PER_EUR
+from config import LEK_PER_EUR, PRODUCT_IMG_DIR
 from db import db
 from seed_data import CATEGORIES_SEED
 
@@ -169,6 +169,81 @@ async def import_products_from_csv_text(csv_text: str, replace: bool = False) ->
         "skipped": skipped,
         "per_category": per_cat,
     }
+
+
+def _drive_id(url: str) -> Optional[str]:
+    if not url:
+        return None
+    m = re.search(r"/d/([A-Za-z0-9_-]+)", url) or re.search(r"[?&]id=([A-Za-z0-9_-]+)", url)
+    return m.group(1) if m else None
+
+
+def _master_image_url(barcode: str, drive_url: str) -> Optional[str]:
+    """Prefer a previously-localized static file; else a resized Drive URL."""
+    for ext in ("jpg", "png", "jpeg", "webp"):
+        if (PRODUCT_IMG_DIR / f"{barcode}.{ext}").exists():
+            return f"/api/static/products/{barcode}.{ext}"
+    fid = _drive_id(drive_url)
+    if fid:
+        return f"https://lh3.googleusercontent.com/d/{fid}=w600"
+    return drive_url or None
+
+
+async def import_master_csv_text(csv_text: str, replace: bool = True) -> dict:
+    """Import the Product Master CSV (barcode, sku, name, category_slug,
+    subcategory, price_lek, discount, mrp_lek, weight, weight_grams, image_url,
+    description) into the products collection."""
+    reader = csv.DictReader(io.StringIO(csv_text))
+    if replace:
+        await db.products.delete_many({})
+    docs: list = []
+    per_cat: dict = {}
+    for row in reader:
+        barcode = (row.get("barcode") or "").strip()
+        name = (row.get("name") or "").strip()
+        slug = (row.get("category_slug") or "").strip()
+        if not name or not slug:
+            continue
+        price = _parse_float(row.get("price_lek"), 0.0)
+        mrp = _parse_float(row.get("mrp_lek"), 0.0)
+        disc = _parse_float(row.get("discount"), 0.0)
+        wg = _parse_float(row.get("weight_grams"), 0.0)
+        weight = (row.get("weight") or "").strip()
+        pid = "p-" + hashlib.md5((barcode or name).encode()).hexdigest()[:12]
+        brand = name.split()[0].title() if name else ""
+        docs.append({
+            "id": pid,
+            "name": name,
+            "description": (row.get("description") or name).strip(),
+            "category_slug": slug,
+            "subcategory": (row.get("subcategory") or "").strip(),
+            "price": price,
+            "price_lek": price,
+            "price_eur": round(price / LEK_PER_EUR, 2),
+            "mrp_lek": mrp or None,
+            "discount": disc,
+            "sku": (row.get("sku") or "").strip(),
+            "product_code": barcode,
+            "ean_barcode": barcode,
+            "stock": 100,
+            "in_stock": True,
+            "weight": weight,
+            "weight_grams": wg or None,
+            "weight_grams_inferred": False,
+            "brand": brand,
+            "tags": [],
+            "variants": [],
+            "image_emoji": "🛒",
+            "image_url": _master_image_url(barcode, (row.get("image_url") or "").strip()),
+            "unit": weight,
+        })
+        per_cat[slug] = per_cat.get(slug, 0) + 1
+    if docs:
+        await db.products.insert_many(docs)
+    for c in CATEGORIES_SEED:
+        n = await db.products.count_documents({"category_slug": c["slug"]})
+        await db.categories.update_one({"slug": c["slug"]}, {"$set": {"product_count": n}})
+    return {"inserted": len(docs), "per_category": per_cat}
 
 
 async def refresh_category_counts():

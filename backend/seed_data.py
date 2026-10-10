@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from typing import Dict, List
 
-SEED_VERSION = "v3-2026-07-csv"
+SEED_VERSION = "v4-2026-10-master"
 LEK_PER_EUR = 100.0
 
 
@@ -11,23 +11,16 @@ def _eur(lek: float) -> float:
     return round(lek / LEK_PER_EUR, 2)
 
 
+# 7 top-level categories from the Product Master. Image URLs for the three
+# user-supplied category photos are served from static (ensured at startup).
 CATEGORIES_SEED: List[Dict] = [
-    {"id": "cat-01", "slug": "snacks",         "name": "Snacks",                     "emoji": "🍿", "coming_soon": False, "sort_order": 1},
-    {"id": "cat-02", "slug": "rtc",            "name": "Ready to Cook (RTC)",        "emoji": "🥘", "coming_soon": False, "sort_order": 2},
-    {"id": "cat-03", "slug": "rte",            "name": "Ready to Eat (RTE)",         "emoji": "🍱", "coming_soon": False, "sort_order": 3},
-    {"id": "cat-04", "slug": "noodles_pasta",  "name": "Noodles & Pasta",            "emoji": "🍜", "coming_soon": False, "sort_order": 4},
-    {"id": "cat-05", "slug": "mukhwas",        "name": "Mouth Fresheners (Mukhwas)", "emoji": "🌿", "coming_soon": False, "sort_order": 5},
-    {"id": "cat-06", "slug": "mithai",         "name": "Indian Sweets (Mithai)",     "emoji": "🍬", "coming_soon": False, "sort_order": 6},
-    {"id": "cat-07", "slug": "flour",          "name": "Flour",                      "emoji": "🌾", "coming_soon": False, "sort_order": 7},
-    {"id": "cat-08", "slug": "rice",           "name": "Rice",                       "emoji": "🍚", "coming_soon": False, "sort_order": 8},
-    {"id": "cat-09", "slug": "dal",            "name": "Lentils (Dal)",              "emoji": "🥣", "coming_soon": False, "sort_order": 9},
-    {"id": "cat-10", "slug": "spices",         "name": "Spices",                     "emoji": "🌶️", "coming_soon": False, "sort_order": 10},
-    {"id": "cat-11", "slug": "oils_ghee",      "name": "Oils & Ghee",                "emoji": "🫙", "coming_soon": False, "sort_order": 11},
-    {"id": "cat-12", "slug": "pickles",        "name": "Pickles",                    "emoji": "🥭", "coming_soon": False, "sort_order": 12},
-    {"id": "cat-13", "slug": "organic",        "name": "Organic & Healthy Living",   "emoji": "🌱", "coming_soon": False, "sort_order": 13},
-    {"id": "cat-14", "slug": "pharma",         "name": "Pharma & Wellness",          "emoji": "💊", "coming_soon": False, "sort_order": 14},
-    {"id": "cat-15", "slug": "puja",           "name": "Puja Needs",                 "emoji": "🪔", "coming_soon": False, "sort_order": 15},
-    {"id": "cat-16", "slug": "personal_care",  "name": "Personal Care",              "emoji": "🧴", "coming_soon": False, "sort_order": 16},
+    {"id": "cat-01", "slug": "food",             "name": "Food & Snacks",      "emoji": "🍿", "coming_soon": False, "sort_order": 1, "image_url": "/api/static/categories/food.jpg"},
+    {"id": "cat-02", "slug": "spices",           "name": "Spices & Masala",    "emoji": "🌶️", "coming_soon": False, "sort_order": 2, "image_url": "/api/static/categories/spices.jpg"},
+    {"id": "cat-03", "slug": "rice_grain_flour", "name": "Rice, Grain & Flour","emoji": "🌾", "coming_soon": False, "sort_order": 3, "image_url": None},
+    {"id": "cat-04", "slug": "personal_care",    "name": "Personal Care",      "emoji": "🧴", "coming_soon": False, "sort_order": 4, "image_url": "/api/static/categories/personal_care.jpg"},
+    {"id": "cat-05", "slug": "household",         "name": "Household",          "emoji": "🧹", "coming_soon": False, "sort_order": 5, "image_url": None},
+    {"id": "cat-06", "slug": "pooja_needs",      "name": "Pooja Needs",        "emoji": "🪔", "coming_soon": False, "sort_order": 6, "image_url": None},
+    {"id": "cat-07", "slug": "healthcare",       "name": "Healthcare",         "emoji": "💊", "coming_soon": False, "sort_order": 7, "image_url": None},
 ]
 
 

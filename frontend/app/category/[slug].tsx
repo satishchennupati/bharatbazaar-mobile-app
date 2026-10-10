@@ -64,11 +64,11 @@ export default function CategoryScreen() {
     const load = async () => {
       try {
         if (isSearch) {
-          const items = await api.get<Product[]>(`/products?q=${encodeURIComponent(q || "")}`);
+          const items = await api.get<Product[]>(`/products?q=${encodeURIComponent(q || "")}&limit=500`);
           setProducts(items);
         } else {
           const [items, cats] = await Promise.all([
-            api.get<Product[]>(`/products?category=${slug}`),
+            api.get<Product[]>(`/products?category=${slug}&limit=500`),
             api.get<Category[]>("/categories"),
           ]);
           setProducts(items);

@@ -1,0 +1,39 @@
+{
+  "summary": "Full catalog replacement (305 products / 7 categories / Product Master Excel import) verified end-to-end. Backend: 24/24 pytest tests pass — /api/categories returns exactly 7 categories with correct product_counts (food=159, spices=85, rice_grain_flour=13, personal_care=17, household=26, pooja_needs=4, healthcare=1), food/spices/personal_care have /api/static/categories/*.jpg that serve HTTP 200 (>1 KB payload), /api/products?category=<slug>&limit=500 returns the expected count for every slug, 20 random product images sampled all serve 200, ~23 products have image_url=null (private Drive — expected emoji fallback), /api/products?q=SWAD returns results and SWAD CHATPATE CHOLE RTE 450G exactly matches price_lek=820 / mrp_lek=1107 / discount=35 / weight='450 g' / image_url='/api/static/products/608171020041.jpg'. Cart→COD order flow still works (quick-user cart cleared after place-order). Admin /api/admin/products list returns 305 and filter by each of the 7 category slugs returns the expected counts; PATCH on a product persists via GET round-trip. Frontend (390x844 web preview, UI login flow): Home renders 7 category tiles — 3 with images (food, spices, personal_care) and 4 with emoji; 'Best sellers' show SWAD RTE products with '35% OFF' + struck '1107 L' + '820 L'. Food category screen shows '159 items' header; grid cards render with real images, 35% OFF badge, struck MRP + weight chip. Product detail (/product/<id>) renders real image, name 'SWAD CHATPATE CHOLE RTE 450G', '35% OFF' badge, struck '1107 L', selling '820 L', weight chip '450 g', and favourite heart. Search for 'SWAD' from the home search bar works. Admin UI: /admin/login with +355690000001/admin123 signs in, Products tab shows '305 products' header, dashboard top-sellers show SWAD products with new pricing. Discount DISPLAY rule confirmed (badge = DISCOUNT% field, struck = MRP — not an MRP-derived %).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_catalog_replace_iter22.py",
+    "/app/test_reports/pytest/iter22_catalog.xml",
+    "/app/test_reports/iter22_home_via_ui.jpeg",
+    "/app/test_reports/iter22_cat_food.jpeg",
+    "/app/test_reports/iter22_prod_detail.jpeg",
+    "/app/test_reports/iter22_admin_products.jpeg"
+  ],
+  "action_items": [
+    "Pre-existing (not new this iteration): React warning 'shadow* style props are deprecated. Use boxShadow.' still logs on web preview — low-priority theme migration.",
+    "Pre-existing (not new this iteration): React warning 'props.pointerEvents is deprecated. Use style.pointerEvents' — minor; comes from category screen's addWrap <View pointerEvents=\"box-none\">.",
+    "No functional issues found in this review request — catalog replace, image hosting, discount display, cart/checkout, and admin tabs all pass."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/catalog.py: /api/products limit is capped at 500 via Query(ge=1, le=500) — matches the client-side limit raised in category screen. Good.",
+    "frontend/src/lib/product.ts discountInfo: correctly prefers explicit `discount` field as the badge % and uses `mrp_lek` (when > price_lek) as the struck price. Falls back to mrp-derived % only when `discount` is 0. Matches spec.",
+    "Observation (test harness only, NOT a product bug): directly injecting mbc_token+mbc_user into localStorage and then hard-navigating to /(tabs) triggers a 'Maximum update depth exceeded' error via @react-navigation useSyncExternalStore. Going through the real UI login flow does NOT reproduce it. Likely race between RootGate's useEffect re-running on fresh `segments` identity and the auth hydrate effect when storage is pre-populated before the provider boots. Keeping as low-priority tech-note; real users are unaffected."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_catalog_replace_iter22.py (new)",
+    "/app/test_reports/pytest/iter22_catalog.xml (generated)",
+    "/app/test_reports/iteration_22.json (new)"
+  ],
+  "success_rate": { "backend": "100% (24/24)", "frontend": "100% of in-scope flows (home, category, product detail, search, admin login + products tab)" },
+  "seed_data_creation": "Cart CRUD + place-order test used quick-user-001 and added 2 food products at qty=2 each, then placed a COD order to Tirana. Cart is emptied by the place-order flow. Admin PATCH test flipped SWAD CHATPATE CHOLE's discount/mrp and restored to original values at the end of the test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Tests in /app/backend/tests/test_catalog_replace_iter22.py are reusable regression tests for the catalog + checkout + admin surfaces. BASE_URL defaults to https://bharat-app-8.preview.emergentagent.com and admin phone format MUST be '+355690000001' (no space). Admin products list endpoint returns {'products': [...], 'count': N} and uses the query param `category` (not `category_slug`). For UI testing, going through the real login flow at '/' avoids a dev-only 'Max update depth' warning that only triggers when localStorage is pre-seeded before the first render.",
+  "rca_of_issue": "N/A — no bugs found. Catalog replacement, image hosting, discount display, cart/checkout and admin flows all verified."
+}

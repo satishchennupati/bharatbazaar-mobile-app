@@ -8,7 +8,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api, resolveImageUrl, type Product } from "@/src/lib/api";
-import { isLowStock } from "@/src/lib/product";
+import { isLowStock, discountInfo } from "@/src/lib/product";
 import { useApp, formatPrice } from "@/src/store/app-context";
 import { useCartActions } from "@/src/hooks/use-cart-actions";
 import { ProductAddButton } from "@/src/components/product-add-button";
@@ -57,17 +57,11 @@ export default function ProductDetail() {
     );
   }
 
-  // Discount display: explicit MRP wins; otherwise derive the struck original
-  // price from the percentage discount set in admin.
-  let discPct: number | null = null;
-  let discStruckLek: number | null = null;
-  if (product.mrp_lek && product.mrp_lek > product.price_lek) {
-    discPct = Math.round(((product.mrp_lek - product.price_lek) / product.mrp_lek) * 100);
-    discStruckLek = product.mrp_lek;
-  } else if (product.discount > 0 && product.discount < 100) {
-    discPct = Math.round(product.discount);
-    discStruckLek = Math.round(product.price_lek / (1 - product.discount / 100));
-  }
+  // Discount display uses the shared helper (explicit DISCOUNT % badge + MRP
+  // struck-through price).
+  const disc = discountInfo(product);
+  const discPct = disc?.pct ?? null;
+  const discStruckLek = disc?.struckLek ?? null;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>

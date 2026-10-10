@@ -16,16 +16,22 @@ export type DiscountInfo = { pct: number; struckLek: number };
  *     amount charged stays `price_lek`.
  */
 export function discountInfo(p: Product): DiscountInfo | null {
-  if (p.mrp_lek && p.mrp_lek > p.price_lek) {
-    return {
-      pct: Math.round(((p.mrp_lek - p.price_lek) / p.mrp_lek) * 100),
-      struckLek: p.mrp_lek,
-    };
-  }
+  // The admin/master sets an explicit DISCOUNT % — that is the badge value.
+  // The struck-through price is the MRP (PRE-DISCOUNT) when it is above the
+  // selling price, otherwise derived from the discount percentage.
+  const mrp = p.mrp_lek && p.mrp_lek > p.price_lek ? p.mrp_lek : null;
   const d = Number(p.discount || 0);
   if (d > 0 && d < 100) {
-    const original = p.price_lek / (1 - d / 100);
-    return { pct: Math.round(d), struckLek: Math.round(original) };
+    return {
+      pct: Math.round(d),
+      struckLek: mrp ?? Math.round(p.price_lek / (1 - d / 100)),
+    };
+  }
+  if (mrp) {
+    return {
+      pct: Math.round(((mrp - p.price_lek) / mrp) * 100),
+      struckLek: mrp,
+    };
   }
   return null;
 }
