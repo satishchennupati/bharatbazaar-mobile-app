@@ -21,25 +21,27 @@ CATEGORY_IMAGE_SOURCES = {
 
 
 async def ensure_category_images():
-    """Download the 3 category photos into static/categories if missing and
-    point the category docs at them (idempotent)."""
+    """Download the 3 category photos into static/categories and point the
+    category docs at them. Always overwrites so updated artwork is picked up
+    (old catalogs may have left stale files with the same slug)."""
     import httpx
 
+    version = "3"  # bump to force clients to refetch after artwork changes
     cat_dir = STATIC_DIR / "categories"
     cat_dir.mkdir(parents=True, exist_ok=True)
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+    async with httpx.AsyncClient(timeout=40.0, follow_redirects=True) as client:
         for slug, url in CATEGORY_IMAGE_SOURCES.items():
             fpath = cat_dir / f"{slug}.jpg"
-            if not fpath.exists() or fpath.stat().st_size < 500:
-                try:
-                    r = await client.get(url)
-                    if r.status_code == 200:
-                        fpath.write_bytes(r.content)
-                except Exception as e:
-                    logger.warning("Category image fetch failed for %s: %s", slug, e)
+            try:
+                r = await client.get(url)
+                if r.status_code == 200 and len(r.content) > 500:
+                    fpath.write_bytes(r.content)
+            except Exception as e:
+                logger.warning("Category image fetch failed for %s: %s", slug, e)
             if fpath.exists():
                 await db.categories.update_one(
-                    {"slug": slug}, {"$set": {"image_url": f"/api/static/categories/{slug}.jpg"}}
+                    {"slug": slug},
+                    {"$set": {"image_url": f"/api/static/categories/{slug}.jpg?v={version}"}},
                 )
 
 
