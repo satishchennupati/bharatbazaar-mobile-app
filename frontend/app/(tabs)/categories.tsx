@@ -1,7 +1,7 @@
 /**
  * Browse all categories grid — Blinkit-style.
  *
- * 4-column grid where each tile is a rounded image card with a very light
+ * 2-column grid where each tile is a large rounded image card with a very light
  * tinted background, and the category name is centered below the tile.
  * No item counts shown.
  */
@@ -24,7 +24,7 @@ const TILE_BACKGROUNDS = [
   "#FAF0F0", // pale rose
 ];
 
-const NUM_COLS = 4;
+const NUM_COLS = 2;
 
 export default function Categories() {
   const router = useRouter();
@@ -57,8 +57,8 @@ export default function Categories() {
         data={cats}
         keyExtractor={(c) => c.id}
         numColumns={NUM_COLS}
-        columnWrapperStyle={{ gap: spacing.sm, paddingHorizontal: spacing.lg }}
-        contentContainerStyle={{ paddingBottom: 40, gap: spacing.md }}
+        columnWrapperStyle={{ gap: spacing.md, paddingHorizontal: spacing.lg }}
+        contentContainerStyle={{ paddingBottom: 40, gap: spacing.lg }}
         renderItem={({ item, index }) => {
           const tint = TILE_BACKGROUNDS[index % TILE_BACKGROUNDS.length];
           return (
@@ -134,12 +134,12 @@ const styles = StyleSheet.create({
   badgeText: { color: "#fff", fontSize: 8, fontWeight: "800", letterSpacing: 0.4 },
 
   name: {
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
     color: colors.textMain,
-    lineHeight: 14,
+    lineHeight: 19,
     textAlign: "center",
-    marginTop: 6,
-    paddingHorizontal: 2,
+    marginTop: 10,
+    paddingHorizontal: 4,
   },
 });

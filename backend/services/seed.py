@@ -17,25 +17,48 @@ CATEGORY_IMAGE_SOURCES = {
     "spices": "https://customer-assets-0z36b82j.emergentagent.net/job_bharat-app-8/artifacts/cfcfc5f68bafc588_Spices.jpg.jpeg",
     "food": "https://customer-assets-0z36b82j.emergentagent.net/job_bharat-app-8/artifacts/98ca63f7ee5fa071_FMCG%20Food.jpg.jpeg",
     "personal_care": "https://customer-assets-0z36b82j.emergentagent.net/job_bharat-app-8/artifacts/a2317d9244b737ce_Personal%20Care.jpg.jpeg",
+    "rice_grain_flour": "https://customer-assets-0z36b82j.emergentagent.net/job_bharat-app-8/artifacts/997573bd231b2306_RICE%2C%20GRAIN%20%26%20FLOUR.png",
+    "pooja_needs": "https://customer-assets-0z36b82j.emergentagent.net/job_bharat-app-8/artifacts/e63598475eaffed4_Pooja1.png",
 }
 
 
 async def ensure_category_images():
-    """Download the 3 category photos into static/categories and point the
-    category docs at them. Always overwrites so updated artwork is picked up
-    (old catalogs may have left stale files with the same slug)."""
-    import httpx
+    """Download the category photos into static/categories (downscaled to JPEG)
+    and point the category docs at them. Always overwrites so updated artwork is
+    picked up (old catalogs may have left stale files with the same slug)."""
+    import io
 
-    version = "3"  # bump to force clients to refetch after artwork changes
+    import httpx
+    from PIL import Image
+
+    version = "4"  # bump to force clients to refetch after artwork changes
     cat_dir = STATIC_DIR / "categories"
     cat_dir.mkdir(parents=True, exist_ok=True)
-    async with httpx.AsyncClient(timeout=40.0, follow_redirects=True) as client:
+
+    def to_jpeg(raw: bytes) -> bytes:
+        im = Image.open(io.BytesIO(raw))
+        if im.mode in ("RGBA", "LA", "P"):
+            im = im.convert("RGBA")
+            bg = Image.new("RGB", im.size, (255, 255, 255))
+            bg.paste(im, mask=im.split()[-1])
+            im = bg
+        else:
+            im = im.convert("RGB")
+        im.thumbnail((800, 800), Image.LANCZOS)
+        out = io.BytesIO()
+        im.save(out, format="JPEG", quality=85, optimize=True)
+        return out.getvalue()
+
+    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
         for slug, url in CATEGORY_IMAGE_SOURCES.items():
             fpath = cat_dir / f"{slug}.jpg"
             try:
                 r = await client.get(url)
                 if r.status_code == 200 and len(r.content) > 500:
-                    fpath.write_bytes(r.content)
+                    try:
+                        fpath.write_bytes(to_jpeg(r.content))
+                    except Exception:
+                        fpath.write_bytes(r.content)
             except Exception as e:
                 logger.warning("Category image fetch failed for %s: %s", slug, e)
             if fpath.exists():
