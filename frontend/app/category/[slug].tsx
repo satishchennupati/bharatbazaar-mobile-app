@@ -22,8 +22,9 @@ import { colors, radius, spacing } from "@/src/theme";
 
 const NUM_COLS = 3;
 
-type SortKey = "relevance" | "price_asc" | "price_desc" | "discount";
+type SortKey = "alpha" | "relevance" | "price_asc" | "price_desc" | "discount";
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: "alpha", label: "Name: A to Z" },
   { key: "relevance", label: "Recommended" },
   { key: "price_asc", label: "Price: Low to High" },
   { key: "price_desc", label: "Price: High to Low" },
@@ -33,6 +34,8 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 function sortProducts(items: Product[], key: SortKey): Product[] {
   const arr = [...items];
   switch (key) {
+    case "alpha":
+      return arr.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
     case "price_asc":
       return arr.sort((a, b) => a.price_lek - b.price_lek);
     case "price_desc":
@@ -53,9 +56,9 @@ export default function CategoryScreen() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cat, setCat] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
-  const [sortKey, setSortKey] = useState<SortKey>("relevance");
-  const [sortOpen, setSortOpen] = useState(false);
   const isSearch = slug === "search";
+  const [sortKey, setSortKey] = useState<SortKey>(isSearch ? "relevance" : "alpha");
+  const [sortOpen, setSortOpen] = useState(false);
 
   const sorted = useMemo(() => sortProducts(products, sortKey), [products, sortKey]);
   const sortLabel = SORT_OPTIONS.find((o) => o.key === sortKey)?.label || "Sort";

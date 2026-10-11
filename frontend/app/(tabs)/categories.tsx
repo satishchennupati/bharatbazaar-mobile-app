@@ -6,9 +6,10 @@
  * No item counts shown.
  */
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 import { api, resolveImageUrl, type Category } from "@/src/lib/api";
 import { useApp } from "@/src/store/app-context";
@@ -31,6 +32,13 @@ export default function Categories() {
   const { t } = useApp();
   const [cats, setCats] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+
+  const onSearch = () => {
+    if (search.trim()) {
+      router.push(`/category/search?q=${encodeURIComponent(search.trim())}`);
+    }
+  };
 
   useEffect(() => {
     api
@@ -52,6 +60,19 @@ export default function Categories() {
       <View style={styles.header}>
         <Text style={styles.title}>{t("shop_by_category")}</Text>
         <Text style={styles.sub}>{t("select_category")}</Text>
+      </View>
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={18} color={colors.textMuted} />
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder={t("search_placeholder")}
+          placeholderTextColor={colors.textDisabled}
+          style={styles.searchInput}
+          returnKeyType="search"
+          onSubmitEditing={onSearch}
+          testID="categories-search-input"
+        />
       </View>
       <FlatList
         data={cats}
@@ -103,9 +124,22 @@ export default function Categories() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
-  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md },
+  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
   title: { fontSize: 26, fontWeight: "800", color: colors.textMain, letterSpacing: -0.5 },
   sub: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingHorizontal: 14,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  searchInput: { flex: 1, fontSize: 14, color: colors.textMain, paddingVertical: 12 },
 
   tileWrap: { flex: 1, alignItems: "stretch" },
   imageTile: {
