@@ -19,6 +19,7 @@ CATEGORY_IMAGE_SOURCES = {
     "personal_care": "https://customer-assets-0z36b82j.emergentagent.net/job_bharat-app-8/artifacts/a2317d9244b737ce_Personal%20Care.jpg.jpeg",
     "rice_grain_flour": "https://customer-assets-0z36b82j.emergentagent.net/job_bharat-app-8/artifacts/997573bd231b2306_RICE%2C%20GRAIN%20%26%20FLOUR.png",
     "pooja_needs": "https://customer-assets-0z36b82j.emergentagent.net/job_bharat-app-8/artifacts/e63598475eaffed4_Pooja1.png",
+    "household": "https://customer-assets-0z36b82j.emergentagent.net/job_bharat-app-8/artifacts/d3a99e77e87df71b_Home%20Care1.png",
 }
 
 
@@ -31,7 +32,7 @@ async def ensure_category_images():
     import httpx
     from PIL import Image
 
-    version = "4"  # bump to force clients to refetch after artwork changes
+    version = "5"  # bump to force clients to refetch after artwork changes
     cat_dir = STATIC_DIR / "categories"
     cat_dir.mkdir(parents=True, exist_ok=True)
 
