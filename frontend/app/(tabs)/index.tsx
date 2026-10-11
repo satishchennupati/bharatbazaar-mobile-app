@@ -296,9 +296,9 @@ const styles = StyleSheet.create({
   promoText: { color: "#fff", fontSize: 13, fontWeight: "600", flex: 1, lineHeight: 18 },
   sectionTitle: { fontSize: 22, fontWeight: "700", color: colors.textMain, marginTop: spacing.lg, letterSpacing: -0.4 },
   sectionSub: { fontSize: 13, color: colors.textMuted, marginTop: 2, marginBottom: spacing.md },
-  catGrid: { flexDirection: "row", flexWrap: "wrap", columnGap: spacing.sm, rowGap: spacing.md },
+  catGrid: { flexDirection: "row", flexWrap: "wrap", columnGap: spacing.md, rowGap: spacing.lg },
   catTile: {
-    width: "22%",
+    width: "48%",
     alignItems: "stretch",
   },
   catImageTile: {
@@ -322,9 +322,9 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   comingSoonText: { color: "#fff", fontSize: 8, fontWeight: "800", letterSpacing: 0.4 },
-  catEmoji: { fontSize: 34 },
+  catEmoji: { fontSize: 44 },
   catImage: { width: "100%", height: "100%" },
-  catName: { fontSize: 11, fontWeight: "600", color: colors.textMain, lineHeight: 14, textAlign: "center", marginTop: 6, paddingHorizontal: 2 },
+  catName: { fontSize: 15, fontWeight: "700", color: colors.textMain, lineHeight: 19, textAlign: "center", marginTop: 8, paddingHorizontal: 4 },
   viewAll: {
     flexDirection: "row",
     alignItems: "center",
