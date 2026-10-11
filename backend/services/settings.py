@@ -7,8 +7,15 @@ can tune pricing from the Admin Panel without a code change.
 from __future__ import annotations
 
 from db import db
+from config import STORE_OWNER_PHONE
 
 SHIPPING_SETTINGS_ID = "shipping"
+STORE_SETTINGS_ID = "store"
+
+# Store/notification defaults.
+STORE_DEFAULTS = {
+    "owner_phone": STORE_OWNER_PHONE or "+355695808480",
+}
 
 # Business defaults (June 2026). Tirana gets a lower free-delivery threshold.
 SHIPPING_DEFAULTS = {
@@ -45,6 +52,27 @@ async def update_shipping_settings(updates: dict) -> dict:
     current["id"] = SHIPPING_SETTINGS_ID
     await db.settings.update_one(
         {"id": SHIPPING_SETTINGS_ID}, {"$set": current}, upsert=True
+    )
+    current.pop("id", None)
+    return current
+
+
+async def get_store_settings() -> dict:
+    """Return store/notification settings, falling back to defaults."""
+    doc = await db.settings.find_one({"id": STORE_SETTINGS_ID}, {"_id": 0}) or {}
+    return {
+        "owner_phone": (doc.get("owner_phone") or STORE_DEFAULTS["owner_phone"]).strip(),
+    }
+
+
+async def update_store_settings(updates: dict) -> dict:
+    """Merge and persist store settings. Returns fresh settings."""
+    current = await get_store_settings()
+    if updates.get("owner_phone") is not None:
+        current["owner_phone"] = str(updates["owner_phone"]).strip()
+    current["id"] = STORE_SETTINGS_ID
+    await db.settings.update_one(
+        {"id": STORE_SETTINGS_ID}, {"$set": current}, upsert=True
     )
     current.pop("id", None)
     return current

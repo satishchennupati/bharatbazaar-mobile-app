@@ -109,11 +109,12 @@ def build_owner_order_sms(order: dict, customer_name: str, customer_phone: str) 
     )
 
 
-def notify_order_placed(order: dict, customer_phone: str, customer_name: str = "") -> dict:
+def notify_order_placed(order: dict, customer_phone: str, customer_name: str = "", owner_phone: str = "") -> dict:
     """Fire the two order-confirmation SMS: one to the customer, one to the store owner.
 
-    Runs synchronously (Twilio call is quick) and always returns diagnostics —
-    callers should NOT let its result affect the HTTP response for /orders.
+    `owner_phone` (admin-configurable) takes precedence over the STORE_OWNER_PHONE
+    env default. Runs synchronously and always returns diagnostics — callers
+    should NOT let its result affect the HTTP response for /orders.
     """
     results: dict = {}
     if customer_phone:
@@ -121,9 +122,10 @@ def notify_order_placed(order: dict, customer_phone: str, customer_name: str = "
         results["customer"] = send_sms(customer_phone, body)
     else:
         results["customer"] = {"sent": False, "channel": "no_phone"}
-    if STORE_OWNER_PHONE:
+    owner_to = (owner_phone or STORE_OWNER_PHONE or "").strip()
+    if owner_to:
         body_owner = build_owner_order_sms(order, customer_name=customer_name, customer_phone=customer_phone or "n/a")
-        results["owner"] = send_sms(STORE_OWNER_PHONE, body_owner)
+        results["owner"] = send_sms(owner_to, body_owner)
     else:
         results["owner"] = {"sent": False, "channel": "no_owner_phone"}
     return results

@@ -49,6 +49,10 @@ export default function AdminShippingSettings() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ownerPhone, setOwnerPhone] = useState("");
+  const [savingOwner, setSavingOwner] = useState(false);
+  const [savedOwner, setSavedOwner] = useState(false);
+  const [ownerError, setOwnerError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -58,12 +62,35 @@ export default function AdminShippingSettings() {
         next[f.key] = String(s[f.key] ?? 0);
       });
       setForm(next);
+      try {
+        const store = await api.get<{ owner_phone: string }>("/admin/settings/store", true);
+        setOwnerPhone(store.owner_phone || "");
+      } catch {}
     } catch (e: any) {
       setError(e?.message || "Failed to load settings");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const onSaveOwner = async () => {
+    setOwnerError(null);
+    const phone = ownerPhone.trim();
+    if (!phone.startsWith("+") || phone.length < 8) {
+      setOwnerError("Enter a full number in E.164 format, e.g. +355695808480");
+      return;
+    }
+    setSavingOwner(true);
+    try {
+      const updated = await api.put<{ owner_phone: string }>("/admin/settings/store", { owner_phone: phone }, true);
+      setOwnerPhone(updated.owner_phone);
+      setSavedOwner(true);
+    } catch (e: any) {
+      setOwnerError(e?.message || "Failed to save owner number");
+    } finally {
+      setSavingOwner(false);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -167,6 +194,46 @@ export default function AdminShippingSettings() {
             <>
               <Ionicons name="save-outline" size={18} color="#fff" />
               <Text style={styles.saveText}>Save changes</Text>
+            </>
+          )}
+        </Pressable>
+
+        <Text style={[styles.groupTitle, { marginTop: spacing.xl }]}>Order notifications</Text>
+        <View style={styles.field}>
+          <Text style={styles.label}>Owner phone number</Text>
+          <Text style={styles.hint}>Receives a &quot;NEW ORDER&quot; SMS whenever a customer places an order. Use full E.164 format.</Text>
+          <View style={styles.inputRow}>
+            <TextInput
+              value={ownerPhone}
+              onChangeText={(v) => { setOwnerPhone(v); setSavedOwner(false); }}
+              keyboardType="phone-pad"
+              autoCapitalize="none"
+              style={styles.input}
+              placeholder="+355695808480"
+              placeholderTextColor={colors.textDisabled}
+              testID="admin-owner-phone-input"
+            />
+          </View>
+        </View>
+        {ownerError ? <Text style={styles.error}>{ownerError}</Text> : null}
+        {savedOwner ? (
+          <View style={styles.savedBanner}>
+            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+            <Text style={styles.savedText}>Owner number saved! New orders will notify this number.</Text>
+          </View>
+        ) : null}
+        <Pressable
+          onPress={onSaveOwner}
+          disabled={savingOwner}
+          style={[styles.saveBtn, savingOwner && { opacity: 0.6 }]}
+          testID="admin-owner-save"
+        >
+          {savingOwner ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="notifications-outline" size={18} color="#fff" />
+              <Text style={styles.saveText}>Save owner number</Text>
             </>
           )}
         </Pressable>

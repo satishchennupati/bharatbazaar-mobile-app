@@ -293,3 +293,8 @@ class ShippingSettingsIn(BaseModel):
     base_outside_lek: Optional[float] = Field(None, ge=0)
     free_weight_kg: Optional[float] = Field(None, ge=0)
     extra_per_kg_lek: Optional[float] = Field(None, ge=0)
+
+
+class StoreSettingsIn(BaseModel):
+    """Store/notification settings editable from the Admin Panel."""
+    owner_phone: Optional[str] = Field(None, min_length=5, max_length=20)

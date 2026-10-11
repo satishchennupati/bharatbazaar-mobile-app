@@ -17,6 +17,7 @@ from services.cart import enrich_cart, get_or_create_cart
 from services.notifications import notify_order_placed
 from services.offers import apply_category_discounts_to_items, validate_coupon
 from services.shipping import quote_for_cart
+from services.settings import get_store_settings
 
 logger = logging.getLogger("bharat_bazaar")
 router = APIRouter(prefix="/orders")
@@ -126,7 +127,11 @@ async def place_order(payload: PlaceOrderIn, user: dict = Depends(get_current_us
     customer_phone = user.get("phone") or (payload.address.phone or "")
     customer_name = (user.get("full_name") or user.get("username") or "").strip()
     try:
-        sms_results = notify_order_placed(order, customer_phone=customer_phone, customer_name=customer_name)
+        store_settings = await get_store_settings()
+        owner_phone = store_settings.get("owner_phone") or ""
+        sms_results = notify_order_placed(
+            order, customer_phone=customer_phone, customer_name=customer_name, owner_phone=owner_phone
+        )
         await db.orders.update_one(
             {"id": order_id},
             {"$set": {
