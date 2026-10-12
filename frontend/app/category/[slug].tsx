@@ -143,6 +143,7 @@ export default function CategoryScreen() {
           contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: 130 + insets.bottom, gap: 22 }}
           renderItem={({ item }) => {
             const disc = discountInfo(item);
+            const oos = item.in_stock === false;
             return (
               <Pressable
                 style={styles.card}
@@ -154,14 +155,18 @@ export default function CategoryScreen() {
                   {item.image_url ? (
                     <Image
                       source={{ uri: resolveImageUrl(item.image_url) }}
-                      style={styles.imgReal}
+                      style={[styles.imgReal, oos && styles.imgDim]}
                       resizeMode="contain"
                     />
                   ) : (
-                    <Text style={styles.imgEmoji}>{item.image_emoji}</Text>
+                    <Text style={[styles.imgEmoji, oos && styles.imgDim]}>{item.image_emoji}</Text>
                   )}
                   <FavouriteHeart productId={item.id} size={16} style={styles.heart} />
-                  {isLowStock(item) ? (
+                  {oos ? (
+                    <View style={styles.oosOverlay}>
+                      <Text style={styles.oosText}>Out of Stock</Text>
+                    </View>
+                  ) : isLowStock(item) ? (
                     <View style={styles.lowStock}>
                       <Text style={styles.lowStockText}>Only few left</Text>
                     </View>
@@ -169,7 +174,7 @@ export default function CategoryScreen() {
                 </View>
 
                 {/* Name — 2 lines max */}
-                <Text style={styles.name} numberOfLines={2}>
+                <Text style={[styles.name, oos && styles.textDim]} numberOfLines={2}>
                   {item.name}
                 </Text>
                 {/* Meta row: discount "X% OFF" left-aligned, weight/unit
@@ -190,23 +195,25 @@ export default function CategoryScreen() {
                       {formatPrice(disc.struckLek, disc.struckLek / 100, currency)}
                     </Text>
                   ) : null}
-                  <Text style={styles.price} numberOfLines={1}>
+                  <Text style={[styles.price, oos && styles.textDim]} numberOfLines={1}>
                     {formatPrice(item.price_lek, item.price_eur, currency)}
                   </Text>
                 </View>
 
                 {/* ADD / stepper floats on the card's bottom-right corner
-                    (Blinkit-style) instead of occupying a full row inside. */}
-                <View style={styles.addWrap} pointerEvents="box-none">
-                  <ProductAddButton
-                    qty={cartQtyMap[item.id] || 0}
-                    onAdd={() => addToCart(item)}
-                    onIncrement={() => setQty(item.id, (cartQtyMap[item.id] || 0) + 1)}
-                    onDecrement={() => setQty(item.id, Math.max(0, (cartQtyMap[item.id] || 0) - 1))}
-                    productId={item.id}
-                    compact
-                  />
-                </View>
+                    (Blinkit-style). Hidden entirely when out of stock. */}
+                {!oos ? (
+                  <View style={styles.addWrap} pointerEvents="box-none">
+                    <ProductAddButton
+                      qty={cartQtyMap[item.id] || 0}
+                      onAdd={() => addToCart(item)}
+                      onIncrement={() => setQty(item.id, (cartQtyMap[item.id] || 0) + 1)}
+                      onDecrement={() => setQty(item.id, Math.max(0, (cartQtyMap[item.id] || 0) - 1))}
+                      productId={item.id}
+                      compact
+                    />
+                  </View>
+                ) : null}
               </Pressable>
             );
           }}
@@ -302,6 +309,18 @@ const styles = StyleSheet.create({
   },
   imgReal: { width: "88%", height: "88%" },
   imgEmoji: { fontSize: 40 },
+  imgDim: { opacity: 0.35 },
+  textDim: { color: colors.textMuted },
+  oosOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(55,65,81,0.92)",
+    paddingVertical: 3,
+    alignItems: "center",
+  },
+  oosText: { color: "#fff", fontSize: 10, fontWeight: "800", letterSpacing: 0.4 },
   heart: { position: "absolute", top: 4, right: 4, width: 26, height: 26, borderRadius: 13 },
   lowStock: {
     position: "absolute",

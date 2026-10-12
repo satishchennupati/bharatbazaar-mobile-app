@@ -21,9 +21,11 @@ async def get_cart(user: dict = Depends(get_current_user)):
 
 @router.post("")
 async def add_to_cart(payload: CartItemIn, user: dict = Depends(get_current_user)):
-    prod = await db.products.find_one({"id": payload.product_id}, {"_id": 0, "id": 1})
+    prod = await db.products.find_one({"id": payload.product_id}, {"_id": 0, "id": 1, "in_stock": 1})
     if not prod:
         raise HTTPException(status_code=404, detail="Product not found")
+    if prod.get("in_stock") is False:
+        raise HTTPException(status_code=409, detail="This product is out of stock")
     cart = await get_or_create_cart(user["id"])
     items = cart.get("items", [])
     found = False
@@ -47,6 +49,12 @@ async def add_to_cart(payload: CartItemIn, user: dict = Depends(get_current_user
 async def update_cart_item(product_id: str, payload: CartItemUpdate, user: dict = Depends(get_current_user)):
     cart = await get_or_create_cart(user["id"])
     items = cart.get("items", [])
+    current_qty = next((it["qty"] for it in items if it["product_id"] == product_id), 0)
+    # Block increasing quantity of an out-of-stock product (decrease/remove is fine).
+    if payload.qty > current_qty:
+        prod = await db.products.find_one({"id": product_id}, {"_id": 0, "in_stock": 1})
+        if prod and prod.get("in_stock") is False:
+            raise HTTPException(status_code=409, detail="This product is out of stock")
     for it in items:
         if it["product_id"] == product_id:
             it["qty"] = payload.qty

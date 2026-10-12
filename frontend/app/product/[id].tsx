@@ -82,7 +82,9 @@ export default function ProductDetail() {
         <View style={styles.body}>
           <View style={styles.chipRow}>
             <Text style={styles.unitChip}>{product.unit || product.weight || product.sku}</Text>
-            {isLowStock(product) ? (
+            {product.in_stock === false ? (
+              <Text style={styles.oosChip}>Out of Stock</Text>
+            ) : isLowStock(product) ? (
               <Text style={styles.lowStockChip}>Only {product.stock} left</Text>
             ) : null}
           </View>
@@ -113,17 +115,26 @@ export default function ProductDetail() {
           phone's system navigation (3-button bar / home indicator) never
           overlaps or greys it out. */}
       <View style={[styles.footer, { paddingBottom: Math.max(spacing.lg, insets.bottom + 8) }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.footerPriceLabel}>Price</Text>
-          <Text style={styles.footerPrice}>{formatPrice(product.price_lek, product.price_eur, currency)}</Text>
-        </View>
-        <ProductAddButton
-          qty={cartQty}
-          onAdd={add}
-          onIncrement={() => setQtyRemote(cartQty + 1)}
-          onDecrement={() => setQtyRemote(Math.max(0, cartQty - 1))}
-          productId={product.id}
-        />
+        {product.in_stock === false ? (
+          <View style={styles.oosFooter}>
+            <Ionicons name="close-circle" size={18} color={colors.error} />
+            <Text style={styles.oosFooterText}>Out of stock — currently unavailable</Text>
+          </View>
+        ) : (
+          <>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.footerPriceLabel}>Price</Text>
+              <Text style={styles.footerPrice}>{formatPrice(product.price_lek, product.price_eur, currency)}</Text>
+            </View>
+            <ProductAddButton
+              qty={cartQty}
+              onAdd={add}
+              onIncrement={() => setQtyRemote(cartQty + 1)}
+              onDecrement={() => setQtyRemote(Math.max(0, cartQty - 1))}
+              productId={product.id}
+            />
+          </>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -143,6 +154,7 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   unitChip: { backgroundColor: colors.surfaceMuted, alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, fontSize: 11, color: colors.textMuted, fontWeight: "600" },
   lowStockChip: { backgroundColor: colors.error, color: "#fff", alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, fontSize: 11, fontWeight: "700" },
+  oosChip: { backgroundColor: "#374151", color: "#fff", alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
   name: { fontSize: 24, fontWeight: "700", color: colors.textMain, marginTop: 12, letterSpacing: -0.4 },
   price: { fontSize: 28, fontWeight: "700", color: colors.primary },
   priceRow: { flexDirection: "row", alignItems: "baseline", gap: 8, marginTop: 8 },
@@ -159,4 +171,6 @@ const styles = StyleSheet.create({
   },
   footerPriceLabel: { fontSize: 11, color: colors.textMuted, textTransform: "uppercase", letterSpacing: 0.5 },
   footerPrice: { fontSize: 22, fontWeight: "700", color: colors.textMain },
+  oosFooter: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  oosFooterText: { fontSize: 15, fontWeight: "700", color: colors.error },
 });

@@ -210,32 +210,39 @@ function ProductCard({
   onPress: () => void;
 }) {
   const disc = discountInfo(p);
+  const oos = p.in_stock === false;
   return (
     <Pressable style={styles.prodCard} onPress={onPress} testID={`product-card-${p.id}`}>
       <View style={styles.prodImage}>
         {p.image_url ? (
-          <Image source={{ uri: resolveImageUrl(p.image_url) }} style={styles.prodImg} resizeMode="contain" />
+          <Image source={{ uri: resolveImageUrl(p.image_url) }} style={[styles.prodImg, oos && styles.prodDim]} resizeMode="contain" />
         ) : (
-          <Text style={styles.prodEmoji}>{p.image_emoji}</Text>
+          <Text style={[styles.prodEmoji, oos && styles.prodDim]}>{p.image_emoji}</Text>
         )}
         <FavouriteHeart productId={p.id} size={16} style={styles.prodHeart} />
-        {isLowStock(p) ? (
+        {oos ? (
+          <View style={styles.prodOos}>
+            <Text style={styles.prodOosText}>Out of Stock</Text>
+          </View>
+        ) : isLowStock(p) ? (
           <View style={styles.prodLowStock}>
             <Text style={styles.prodLowStockText}>Only few left</Text>
           </View>
         ) : null}
-        <View style={styles.prodImageBtn}>
-          <ProductAddButton
-            qty={qty}
-            onAdd={onAdd}
-            onIncrement={onInc}
-            onDecrement={onDec}
-            productId={p.id}
-            compact
-          />
-        </View>
+        {!oos ? (
+          <View style={styles.prodImageBtn}>
+            <ProductAddButton
+              qty={qty}
+              onAdd={onAdd}
+              onIncrement={onInc}
+              onDecrement={onDec}
+              productId={p.id}
+              compact
+            />
+          </View>
+        ) : null}
       </View>
-      <Text style={styles.prodName} numberOfLines={2}>
+      <Text style={[styles.prodName, oos && { color: colors.textMuted }]} numberOfLines={2}>
         {p.name}
       </Text>
       {/* Meta row: discount left, weight right (weight stays right-aligned). */}
@@ -368,6 +375,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   prodLowStockText: { color: "#fff", fontSize: 9, fontWeight: "800", letterSpacing: 0.2 },
+  prodDim: { opacity: 0.35 },
+  prodOos: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "rgba(55,65,81,0.92)", paddingVertical: 2, alignItems: "center" },
+  prodOosText: { color: "#fff", fontSize: 9, fontWeight: "800", letterSpacing: 0.3 },
   prodEmoji: { fontSize: 44 },
   prodImg: { width: "100%", height: "100%" },
   prodName: { fontSize: 13, fontWeight: "600", color: colors.textMain, lineHeight: 16 },

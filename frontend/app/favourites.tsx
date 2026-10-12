@@ -77,21 +77,27 @@ export default function Favourites() {
           contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: 130 + insets.bottom, gap: spacing.md }}
           renderItem={({ item }) => {
             const disc = discountInfo(item);
+            const oos = item.in_stock === false;
             return (
               <Pressable style={styles.card} onPress={() => router.push(`/product/${item.id}`)} testID={`fav-prod-${item.id}`}>
                 <View style={styles.imgBox}>
                   {item.image_url ? (
-                    <Image source={{ uri: resolveImageUrl(item.image_url) }} style={styles.imgReal} resizeMode="contain" />
+                    <Image source={{ uri: resolveImageUrl(item.image_url) }} style={[styles.imgReal, oos && styles.imgDim]} resizeMode="contain" />
                   ) : (
-                    <Text style={styles.imgEmoji}>{item.image_emoji}</Text>
+                    <Text style={[styles.imgEmoji, oos && styles.imgDim]}>{item.image_emoji}</Text>
                   )}
                   <FavouriteHeart productId={item.id} size={16} style={styles.heart} />
-                  {isLowStock(item) ? (
+                  {oos ? (
+                    <View style={styles.oosOverlay}>
+                      <Text style={styles.oosText}>Out of Stock</Text>
+                    </View>
+                  ) : isLowStock(item) ? (
                     <View style={styles.lowStock}>
                       <Text style={styles.lowStockText}>Only few left</Text>
                     </View>
                   ) : null}
-                  <View style={styles.addBtn}>
+                  {!oos ? (
+                    <View style={styles.addBtn}>
                     <ProductAddButton
                       qty={cartQtyMap[item.id] || 0}
                       onAdd={() => cartActions.addToCart(item.id, 1)}
@@ -101,8 +107,9 @@ export default function Favourites() {
                       compact
                     />
                   </View>
+                  ) : null}
                 </View>
-                <Text style={styles.name} numberOfLines={2}>{item.name}</Text>
+                <Text style={[styles.name, oos && { color: colors.textMuted }]} numberOfLines={2}>{item.name}</Text>
                 <View style={styles.metaRow}>
                   {disc ? <Text style={styles.off}>{disc.pct}% OFF</Text> : null}
                   <Text style={[styles.unit, styles.unitRight]} numberOfLines={1}>{item.unit || item.weight}</Text>
@@ -158,6 +165,9 @@ const styles = StyleSheet.create({
   },
   imgReal: { width: "82%", height: "82%" },
   imgEmoji: { fontSize: 48 },
+  imgDim: { opacity: 0.35 },
+  oosOverlay: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "rgba(55,65,81,0.92)", paddingVertical: 3, alignItems: "center" },
+  oosText: { color: "#fff", fontSize: 10, fontWeight: "800", letterSpacing: 0.4 },
   heart: { position: "absolute", top: 4, left: 4, width: 26, height: 26, borderRadius: 13 },
   addBtn: { position: "absolute", right: 4, bottom: 4 },
   lowStock: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "rgba(239,68,68,0.92)", paddingVertical: 2, alignItems: "center" },
