@@ -1,6 +1,7 @@
 """Health + banner + catalog (categories, products)."""
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -49,11 +50,8 @@ async def list_products(
     if category:
         query["category_slug"] = category
     if q:
-        query["$or"] = [
-            {"name": {"$regex": q, "$options": "i"}},
-            {"description": {"$regex": q, "$options": "i"}},
-            {"tags": {"$regex": q, "$options": "i"}},
-        ]
+        # Search is confined to product names only (not description/tags).
+        query["name"] = {"$regex": re.escape(q), "$options": "i"}
     items = await db.products.find(query, {"_id": 0}).limit(limit).to_list(limit)
     return items
 

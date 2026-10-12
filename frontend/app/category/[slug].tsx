@@ -6,7 +6,7 @@
  * and an ADD/stepper button anchored bottom-right.
  */
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -59,8 +59,15 @@ export default function CategoryScreen() {
   const isSearch = slug === "search";
   const [sortKey, setSortKey] = useState<SortKey>(isSearch ? "relevance" : "alpha");
   const [sortOpen, setSortOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
   const sorted = useMemo(() => sortProducts(products, sortKey), [products, sortKey]);
+  // In-category search: filter the current list by product name only.
+  const visible = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) return sorted;
+    return sorted.filter((p) => p.name.toLowerCase().includes(term));
+  }, [sorted, query]);
   const sortLabel = SORT_OPTIONS.find((o) => o.key === sortKey)?.label || "Sort";
 
   useEffect(() => {
@@ -120,8 +127,27 @@ export default function CategoryScreen() {
         </View>
       </View>
       {products.length > 0 ? (
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={18} color={colors.textMuted} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder={isSearch ? "Refine results" : `Search in ${cat?.name || "category"}`}
+            placeholderTextColor={colors.textDisabled}
+            style={styles.searchInput}
+            returnKeyType="search"
+            testID="cat-search-input"
+          />
+          {query ? (
+            <Pressable onPress={() => setQuery("")} hitSlop={8} testID="cat-search-clear">
+              <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      {products.length > 0 ? (
         <View style={styles.sortBar}>
-          <Text style={styles.sortCount}>{products.length} items</Text>
+          <Text style={styles.sortCount}>{visible.length} items</Text>
           <Pressable style={styles.sortBtn} onPress={() => setSortOpen(true)} testID="cat-sort-btn">
             <Ionicons name="swap-vertical" size={16} color={colors.textMain} />
             <Text style={styles.sortBtnText} numberOfLines={1}>{sortLabel}</Text>
@@ -134,9 +160,14 @@ export default function CategoryScreen() {
           <Ionicons name="search" size={48} color={colors.textDisabled} />
           <Text style={styles.emptyText}>No products found</Text>
         </View>
+      ) : visible.length === 0 ? (
+        <View style={styles.empty}>
+          <Ionicons name="search" size={48} color={colors.textDisabled} />
+          <Text style={styles.emptyText}>No matches for “{query.trim()}”</Text>
+        </View>
       ) : (
         <FlatList
-          data={sorted}
+          data={visible}
           keyExtractor={(p) => p.id}
           numColumns={NUM_COLS}
           columnWrapperStyle={{ gap: 8, paddingHorizontal: spacing.md }}
@@ -262,6 +293,19 @@ const styles = StyleSheet.create({
   empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   emptyText: { fontSize: 15, color: colors.textMuted, marginTop: 8 },
 
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingHorizontal: 14,
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+  },
+  searchInput: { flex: 1, fontSize: 14, color: colors.textMain, paddingVertical: 11 },
   sortBar: {
     flexDirection: "row",
     alignItems: "center",
