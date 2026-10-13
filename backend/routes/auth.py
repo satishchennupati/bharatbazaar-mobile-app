@@ -20,6 +20,7 @@ from security import (
     make_token,
 )
 from services.notifications import send_sms
+from services.webhooks import emit_event, mask_phone, split_phone
 
 router = APIRouter(prefix="/auth")
 logger = logging.getLogger("bharat_bazaar")
@@ -29,9 +30,22 @@ def _gen_otp() -> str:
     return "".join(secrets.choice("0123456789") for _ in range(OTP_LENGTH))
 
 
-async def _send_sms_otp(phone: str, code: str) -> dict:
+async def _send_sms_otp(phone: str, code: str, purpose: str = "register") -> dict:
     body = f"Your Bharat Bazaar verification code is {code}. It expires in {OTP_EXPIRY_MINUTES} minutes."
     result = send_sms(phone, body)
+    cc, _ = split_phone(phone)
+    emit_event(
+        "otp.sent",
+        {
+            "purpose": purpose,
+            "phoneCountryCode": cc,
+            "phoneMasked": mask_phone(phone),
+            "channel": "sms",
+            "providerMessageId": result.get("sid"),
+            "deliveryStatus": "accepted" if result.get("sent") else "failed",
+        },
+        correlation_id=f"corr_otp_{purpose}_{mask_phone(phone)}",
+    )
     if result.get("sent"):
         return result
     # Preserve the shape the auth routes expect (`channel` and optional error info).
@@ -191,7 +205,7 @@ async def send_reset_otp(payload: SendOtpIn):
         "created_at": datetime.now(timezone.utc),
         "expires_at": datetime.now(timezone.utc) + timedelta(minutes=OTP_EXPIRY_MINUTES),
     })
-    result = await _send_sms_otp(phone, code)
+    result = await _send_sms_otp(phone, code, purpose="reset")
     if not result.get("sent"):
         resp["debug_code"] = code
     return resp

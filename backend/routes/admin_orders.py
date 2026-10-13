@@ -12,6 +12,7 @@ from db import db
 from models import AdminOrderPatch
 from security import require_admin
 from services.notifications import notify_order_status
+from services.webhooks import emit_event
 
 logger = logging.getLogger("bharat_bazaar")
 
@@ -104,6 +105,42 @@ async def admin_update_order(order_id: str, payload: AdminOrderPatch, admin: dic
             updated["customer_email"] = u.get("email") or ""
     # SMS the customer whenever the order status changes.
     if payload.status and payload.status != order.get("status"):
+        prev_status = order.get("status") or "placed"
+        try:
+            seq = ORDER_STATUSES.index(payload.status) + 1
+        except ValueError:
+            seq = 0
+        # order.status_updated webhook event (best-effort, non-blocking).
+        emit_event(
+            "order.status_updated",
+            {
+                "orderId": order_id,
+                "previousStatus": prev_status,
+                "currentStatus": payload.status,
+                "statusReason": payload.admin_note or "Status updated by store",
+                "updatedBy": "store",
+                "statusSequence": seq,
+            },
+            actor={"customerId": (updated or {}).get("user_id")},
+            correlation_id=f"corr_order_{order_id}",
+        )
+        # COD is collected on delivery — emit payment.completed at that point.
+        if payload.status == "delivered":
+            emit_event(
+                "payment.completed",
+                {
+                    "paymentId": f"cod_{order_id}",
+                    "orderId": order_id,
+                    "paymentProvider": "cod",
+                    "paymentMethod": "cod",
+                    "amount": float((updated or {}).get("total_lek") or 0.0),
+                    "currency": "LEK",
+                    "paymentStatus": "captured",
+                    "transactionReference": f"cod_{order_id}",
+                },
+                actor={"customerId": (updated or {}).get("user_id")},
+                correlation_id=f"corr_order_{order_id}",
+            )
         cust_phone = (updated or {}).get("customer_phone") or (updated or {}).get("address", {}).get("phone") or ""
         cust_name = (updated or {}).get("customer_name") or ""
         try:

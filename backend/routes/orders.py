@@ -18,6 +18,7 @@ from services.notifications import notify_order_placed
 from services.offers import apply_category_discounts_to_items, validate_coupon
 from services.shipping import quote_for_cart
 from services.settings import get_store_settings
+from services.webhooks import emit_event
 
 logger = logging.getLogger("bharat_bazaar")
 router = APIRouter(prefix="/orders")
@@ -112,6 +113,24 @@ async def place_order(payload: PlaceOrderIn, user: dict = Depends(get_current_us
     }
     await db.orders.insert_one(dict(order))
     await db.carts.update_one({"user_id": user["id"]}, {"$set": {"items": []}})
+
+    # Emit order.placed webhook event (best-effort, non-blocking).
+    item_count = sum(int(it.get("qty") or 1) for it in items_with_cat)
+    emit_event(
+        "order.placed",
+        {
+            "orderId": order_id,
+            "orderNumber": order_id,
+            "orderType": "delivery",
+            "currency": "LEK",
+            "totalAmount": total_lek,
+            "paymentStatus": "pending",
+            "orderStatus": "placed",
+            "itemCount": item_count,
+        },
+        actor={"customerId": user["id"]},
+        correlation_id=f"corr_order_{order_id}",
+    )
 
     # Increment coupon usage counter
     if coupon_meta and coupon_meta.get("id"):

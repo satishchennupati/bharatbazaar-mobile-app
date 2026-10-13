@@ -35,6 +35,12 @@ GOOGLE_MAPS_API_KEY = os.environ.get("GOOGLE_MAPS_API_KEY", "")
 STORE_OWNER_PHONE = os.environ.get("STORE_OWNER_PHONE", "+355695808480")
 STORE_NAME = os.environ.get("STORE_NAME", "Bharat Bazaar")
 
+# ---- Event webhook (order/otp/payment events are POSTed here) ----
+WEBHOOK_URL = os.environ.get("WEBHOOK_URL", "")
+WEBHOOK_ENV = os.environ.get("WEBHOOK_ENV", "production")
+APP_VERSION = os.environ.get("APP_VERSION", "1.0.0")
+STORE_ID = os.environ.get("STORE_ID", "bharatbazaar_albania_01")
+
 # ---- JWT ----
 JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALGO = os.environ.get("JWT_ALGORITHM", "HS256")
