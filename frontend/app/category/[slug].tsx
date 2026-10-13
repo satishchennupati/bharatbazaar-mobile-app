@@ -6,7 +6,7 @@
  * and an ADD/stepper button anchored bottom-right.
  */
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -21,6 +21,14 @@ import { FloatingCartBar } from "@/src/components/floating-cart-bar";
 import { colors, radius, spacing } from "@/src/theme";
 
 const NUM_COLS = 3;
+
+function titleCase(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/\brte\b/i, "RTE")
+    .replace(/\brtc\b/i, "RTC");
+}
 
 type SortKey = "alpha" | "relevance" | "price_asc" | "price_desc" | "discount";
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
@@ -60,14 +68,28 @@ export default function CategoryScreen() {
   const [sortKey, setSortKey] = useState<SortKey>(isSearch ? "relevance" : "alpha");
   const [sortOpen, setSortOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [subFilter, setSubFilter] = useState<string | null>(null);
+
+  // Distinct sub-categories present in this list (for the filter chips).
+  const subcats = useMemo(() => {
+    const seen = new Set<string>();
+    products.forEach((p) => {
+      const s = (p.subcategory || "").trim();
+      if (s) seen.add(s);
+    });
+    return Array.from(seen).sort((a, b) => a.localeCompare(b));
+  }, [products]);
 
   const sorted = useMemo(() => sortProducts(products, sortKey), [products, sortKey]);
-  // In-category search: filter the current list by product name only.
+  // In-category search + sub-category filter (search matches product name only).
   const visible = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return sorted;
-    return sorted.filter((p) => p.name.toLowerCase().includes(term));
-  }, [sorted, query]);
+    return sorted.filter((p) => {
+      if (subFilter && (p.subcategory || "").trim() !== subFilter) return false;
+      if (term && !p.name.toLowerCase().includes(term)) return false;
+      return true;
+    });
+  }, [sorted, query, subFilter]);
   const sortLabel = SORT_OPTIONS.find((o) => o.key === sortKey)?.label || "Sort";
 
   useEffect(() => {
@@ -143,6 +165,38 @@ export default function CategoryScreen() {
               <Ionicons name="close-circle" size={18} color={colors.textMuted} />
             </Pressable>
           ) : null}
+        </View>
+      ) : null}
+      {products.length > 0 && subcats.length > 1 ? (
+        <View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipRow}
+          >
+            <Pressable
+              onPress={() => setSubFilter(null)}
+              style={[styles.chip, !subFilter && styles.chipActive]}
+              testID="cat-subchip-all"
+            >
+              <Text style={[styles.chipText, !subFilter && styles.chipTextActive]}>All</Text>
+            </Pressable>
+            {subcats.map((s) => {
+              const active = subFilter === s;
+              return (
+                <Pressable
+                  key={s}
+                  onPress={() => setSubFilter(active ? null : s)}
+                  style={[styles.chip, active && styles.chipActive]}
+                  testID={`cat-subchip-${s}`}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
+                    {titleCase(s)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </View>
       ) : null}
       {products.length > 0 ? (
@@ -306,6 +360,18 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   searchInput: { flex: 1, fontSize: 14, color: colors.textMain, paddingVertical: 11 },
+  chipRow: { paddingHorizontal: spacing.base, gap: 8, paddingBottom: spacing.sm },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { fontSize: 12, fontWeight: "700", color: colors.textMain, maxWidth: 160 },
+  chipTextActive: { color: "#fff" },
   sortBar: {
     flexDirection: "row",
     alignItems: "center",

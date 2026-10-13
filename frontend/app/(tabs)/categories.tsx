@@ -43,7 +43,7 @@ export default function Categories() {
   useEffect(() => {
     api
       .get<Category[]>("/categories")
-      .then(setCats)
+      .then((list) => setCats(list.filter((c) => c.product_count > 0 || c.coming_soon)))
       .finally(() => setLoading(false));
   }, []);
 

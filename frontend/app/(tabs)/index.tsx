@@ -46,7 +46,7 @@ export default function Home() {
         api.get<Product[]>("/products?limit=20"),
         api.get<{ promo_strip: PromoStrip | null }>("/offers/promo-strip").catch(() => ({ promo_strip: null })),
       ]);
-      setCats(catList);
+      setCats(catList.filter((c) => c.product_count > 0 || c.coming_soon));
       setFeatured(prods);
       setPromo(promoRes?.promo_strip || null);
       try {

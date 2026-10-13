@@ -90,6 +90,7 @@ export type Product = {
   name: string;
   description: string;
   category_slug: string;
+  subcategory?: string;
   price: number;
   price_lek: number;
   price_eur: number;
