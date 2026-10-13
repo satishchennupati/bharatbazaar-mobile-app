@@ -14,6 +14,7 @@ live settings and is therefore async.
 """
 from __future__ import annotations
 
+import math
 from typing import Iterable, Optional
 
 from services.settings import get_shipping_settings
@@ -72,6 +73,7 @@ def calculate_delivery_fee(
           "rate_per_kg_lek": float,
           "weight_grams": int,
           "weight_kg": float,
+          "billable_kg": int,  # weight_kg rounded up to the next whole kg
           "free_shipping": bool,
           "free_threshold_lek": float,
         }
@@ -84,7 +86,10 @@ def calculate_delivery_fee(
 
     free = float(subtotal_lek or 0) >= free_threshold
     weight_kg = max(0.0, int(weight_grams or 0) / 1000.0)
-    fee = 0.0 if free else round(weight_kg * rate, 2)
+    # Billable weight rounds up to the next whole kg (e.g. 0.45 kg → 1 kg,
+    # 1.2 kg → 2 kg). A cart with any weight is charged for at least 1 kg.
+    billable_kg = math.ceil(weight_kg) if weight_kg > 0 else 0
+    fee = 0.0 if free else round(billable_kg * rate, 2)
 
     return {
         "fee_lek": fee,
@@ -92,6 +97,7 @@ def calculate_delivery_fee(
         "rate_per_kg_lek": rate,
         "weight_grams": int(weight_grams or 0),
         "weight_kg": round(weight_kg, 3),
+        "billable_kg": billable_kg,
         "free_shipping": free,
         "free_threshold_lek": free_threshold,
     }

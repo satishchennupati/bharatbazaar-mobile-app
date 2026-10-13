@@ -27,6 +27,7 @@ type ShippingQuote = {
   rate_per_kg_lek: number;
   weight_grams: number;
   weight_kg: number;
+  billable_kg: number;
   free_shipping: boolean;
   free_threshold_lek: number;
 };
@@ -620,7 +621,7 @@ export default function Checkout() {
             <Text style={styles.shipHint} testID="ship-hint">
               {shipQuote.zone === "tirana" ? "Tirana city" : "Outside Tirana"}
               {" · "}
-              {(shipQuote.weight_kg ?? shipQuote.weight_grams / 1000).toFixed(2)} kg ×{" "}
+              {(shipQuote.billable_kg ?? Math.ceil(shipQuote.weight_kg ?? shipQuote.weight_grams / 1000))} kg ×{" "}
               {Math.round(shipQuote.rate_per_kg_lek)} L/kg
               {"\n"}
               Free above {Math.round(shipQuote.free_threshold_lek)} L
