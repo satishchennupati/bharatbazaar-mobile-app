@@ -61,15 +61,17 @@ def calculate_delivery_fee(
 ) -> dict:
     """Return a breakdown of the delivery fee using the given shipping settings.
 
+    Rule: if the subtotal reaches the zone's free threshold → free. Otherwise
+    delivery is charged at a flat rate per kg (same rate in both zones),
+    proportional to the cart weight.
+
     Shape:
         {
           "fee_lek": float,
           "zone": "tirana"|"outside",
-          "base_lek": float,
-          "extra_lek": float,
-          "included_grams": int,
-          "billable_extra_grams": int,
+          "rate_per_kg_lek": float,
           "weight_grams": int,
+          "weight_kg": float,
           "free_shipping": bool,
           "free_threshold_lek": float,
         }
@@ -78,25 +80,18 @@ def calculate_delivery_fee(
     free_threshold = float(
         settings["free_min_tirana_lek"] if is_tirana else settings["free_min_outside_lek"]
     )
-    base = float(settings["base_tirana_lek"] if is_tirana else settings["base_outside_lek"])
-    included_grams = int(round(float(settings["free_weight_kg"]) * 1000))
-    extra_per_gram = float(settings["extra_per_kg_lek"]) / 1000.0
+    rate = float(settings.get("rate_per_kg_lek", 100.0))
 
     free = float(subtotal_lek or 0) >= free_threshold
-
-    extra_grams = max(0, int(weight_grams or 0) - included_grams)
-    extra_fee = round(extra_grams * extra_per_gram, 2)
-
-    fee = 0.0 if free else round(base + extra_fee, 2)
+    weight_kg = max(0.0, int(weight_grams or 0) / 1000.0)
+    fee = 0.0 if free else round(weight_kg * rate, 2)
 
     return {
         "fee_lek": fee,
         "zone": zone,
-        "base_lek": 0.0 if free else base,
-        "extra_lek": 0.0 if free else extra_fee,
-        "included_grams": included_grams,
-        "billable_extra_grams": extra_grams,
+        "rate_per_kg_lek": rate,
         "weight_grams": int(weight_grams or 0),
+        "weight_kg": round(weight_kg, 3),
         "free_shipping": free,
         "free_threshold_lek": free_threshold,
     }

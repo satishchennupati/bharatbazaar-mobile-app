@@ -109,6 +109,36 @@ def build_owner_order_sms(order: dict, customer_name: str, customer_phone: str) 
     )
 
 
+_STATUS_MESSAGES = {
+    "placed": "has been received and is awaiting confirmation",
+    "confirmed": "is confirmed and being prepared",
+    "packed": "is packed and ready for dispatch",
+    "out_for_delivery": "is out for delivery — our rider is on the way",
+    "delivered": "has been delivered. Thank you for shopping with us!",
+    "cancelled": "has been cancelled. Contact us if this is unexpected",
+}
+
+
+def build_status_update_sms(order: dict, status: str, customer_name: str = "") -> str:
+    name_prefix = f"Hi {customer_name.strip()}, " if customer_name and customer_name.strip() else ""
+    phrase = _STATUS_MESSAGES.get(status, f"status is now: {status}")
+    extra = ""
+    if status == "out_for_delivery":
+        dp = (order.get("delivery_person_name") or "").strip()
+        dphone = (order.get("delivery_person_phone") or "").strip()
+        if dp:
+            extra = f" Rider: {dp}{(' (' + dphone + ')') if dphone else ''}."
+    return f"{STORE_NAME}: {name_prefix}your order #{order['id']} {phrase}.{extra}"
+
+
+def notify_order_status(order: dict, customer_phone: str, status: str, customer_name: str = "") -> dict:
+    """Send an order status-update SMS to the customer. Best-effort."""
+    if not customer_phone:
+        return {"sent": False, "channel": "no_phone"}
+    body = build_status_update_sms(order, status, customer_name=customer_name)
+    return send_sms(customer_phone, body)
+
+
 def notify_order_placed(order: dict, customer_phone: str, customer_name: str = "", owner_phone: str = "") -> dict:
     """Fire the two order-confirmation SMS: one to the customer, one to the store owner.
 

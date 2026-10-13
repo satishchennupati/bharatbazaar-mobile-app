@@ -24,10 +24,9 @@ const LEK_PER_EUR = 100;
 type ShippingQuote = {
   fee_lek: number;
   zone: "tirana" | "outside";
-  base_lek: number;
-  extra_lek: number;
-  billable_extra_grams: number;
+  rate_per_kg_lek: number;
   weight_grams: number;
+  weight_kg: number;
   free_shipping: boolean;
   free_threshold_lek: number;
 };
@@ -620,15 +619,11 @@ export default function Checkout() {
           {shipQuote && !isFree ? (
             <Text style={styles.shipHint} testID="ship-hint">
               {shipQuote.zone === "tirana" ? "Tirana city" : "Outside Tirana"}
-              {" · "}Base {Math.round(shipQuote.base_lek)} L
-              {shipQuote.billable_extra_grams > 0
-                ? ` + ${Math.round(shipQuote.extra_lek)} L for extra ${(
-                    shipQuote.billable_extra_grams / 1000
-                  ).toFixed(2)} kg`
-                : ""}
+              {" · "}
+              {(shipQuote.weight_kg ?? shipQuote.weight_grams / 1000).toFixed(2)} kg ×{" "}
+              {Math.round(shipQuote.rate_per_kg_lek)} L/kg
               {"\n"}
-              Weight {(shipQuote.weight_grams / 1000).toFixed(2)} kg · Free above{" "}
-              {Math.round(shipQuote.free_threshold_lek)} L
+              Free above {Math.round(shipQuote.free_threshold_lek)} L
             </Text>
           ) : null}
           {shipQuote && isFree ? (

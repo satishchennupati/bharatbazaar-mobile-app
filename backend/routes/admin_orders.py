@@ -1,6 +1,7 @@
 """Admin: orders CRUD + dashboard KPIs."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -10,6 +11,9 @@ from config import ORDER_STATUSES
 from db import db
 from models import AdminOrderPatch
 from security import require_admin
+from services.notifications import notify_order_status
+
+logger = logging.getLogger("bharat_bazaar")
 
 router = APIRouter(prefix="/admin")
 
@@ -98,6 +102,18 @@ async def admin_update_order(order_id: str, payload: AdminOrderPatch, admin: dic
             updated["customer_name"] = u.get("full_name") or ""
             updated["customer_phone"] = u.get("phone") or ""
             updated["customer_email"] = u.get("email") or ""
+    # SMS the customer whenever the order status changes.
+    if payload.status and payload.status != order.get("status"):
+        cust_phone = (updated or {}).get("customer_phone") or (updated or {}).get("address", {}).get("phone") or ""
+        cust_name = (updated or {}).get("customer_name") or ""
+        try:
+            sms = notify_order_status(updated, cust_phone, payload.status, customer_name=cust_name)
+            await db.orders.update_one(
+                {"id": order_id},
+                {"$set": {"notification_status_update": {"status": payload.status, "result": sms, "at": now}}},
+            )
+        except Exception as exc:
+            logger.warning("Status-update SMS failed for %s: %s", order_id, exc)
     return updated
 
 

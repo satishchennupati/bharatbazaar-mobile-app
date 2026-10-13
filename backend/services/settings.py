@@ -17,14 +17,12 @@ STORE_DEFAULTS = {
     "owner_phone": STORE_OWNER_PHONE or "+355695808480",
 }
 
-# Business defaults (June 2026). Tirana gets a lower free-delivery threshold.
+# Shipping defaults. When an order's subtotal is below the (zone-specific) free
+# threshold, delivery is charged at a flat rate per kg in BOTH zones.
 SHIPPING_DEFAULTS = {
     "free_min_tirana_lek": 1000.0,
     "free_min_outside_lek": 2000.0,
-    "base_tirana_lek": 200.0,
-    "base_outside_lek": 300.0,
-    "free_weight_kg": 2.0,       # weight allowance before per-kg surcharge
-    "extra_per_kg_lek": 50.0,    # surcharge per extra kg above the allowance
+    "rate_per_kg_lek": 100.0,  # flat LEK per kg charged below the free threshold
 }
 
 _FLOAT_FIELDS = tuple(SHIPPING_DEFAULTS.keys())
