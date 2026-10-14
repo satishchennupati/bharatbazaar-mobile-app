@@ -118,6 +118,7 @@ export type CartItem = {
   image_emoji: string;
   image_url?: string | null;
   unit: string;
+  weight_grams?: number | null;
   price_lek: number;
   price_eur: number;
   qty: number;

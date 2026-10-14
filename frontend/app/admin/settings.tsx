@@ -28,13 +28,15 @@ import { colors, radius, spacing } from "@/src/theme";
 type ShippingSettings = {
   free_min_tirana_lek: number;
   free_min_outside_lek: number;
-  rate_per_kg_lek: number;
+  rate_per_kg_tirana_lek: number;
+  rate_per_kg_outside_lek: number;
 };
 
 const FIELDS: { key: keyof ShippingSettings; label: string; hint: string; unit: string }[] = [
   { key: "free_min_tirana_lek", label: "Free delivery — Tirana City", hint: "Orders at/above this get free delivery inside Tirana", unit: "L" },
   { key: "free_min_outside_lek", label: "Free delivery — Rest of Albania", hint: "Orders at/above this get free delivery outside Tirana", unit: "L" },
-  { key: "rate_per_kg_lek", label: "Delivery rate per kg", hint: "Below the free threshold, charged per kg of cart weight (both zones)", unit: "L/kg" },
+  { key: "rate_per_kg_tirana_lek", label: "Delivery rate — Tirana City", hint: "Below the free threshold, charged per kg of cart weight inside Tirana", unit: "L/kg" },
+  { key: "rate_per_kg_outside_lek", label: "Delivery rate — Rest of Albania", hint: "Below the free threshold, charged per kg of cart weight outside Tirana", unit: "L/kg" },
 ];
 
 export default function AdminShippingSettings() {
@@ -159,11 +161,11 @@ export default function AdminShippingSettings() {
         ))}
 
         <Text style={styles.groupTitle}>Delivery rate</Text>
-        {FIELDS.slice(2, 3).map((f) => (
+        {FIELDS.slice(2, 4).map((f) => (
           <Field key={f.key} f={f} value={form[f.key]} onChange={setField} />
         ))}
         <Text style={styles.rateNote}>
-          Below the free threshold, delivery = weight (kg) × this rate, in both Tirana and the rest of Albania.
+          Below the free threshold, delivery = weight (kg, rounded up to the next whole kg) × the rate for that zone.
         </Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}

@@ -82,7 +82,11 @@ def calculate_delivery_fee(
     free_threshold = float(
         settings["free_min_tirana_lek"] if is_tirana else settings["free_min_outside_lek"]
     )
-    rate = float(settings.get("rate_per_kg_lek", 100.0))
+    rate = float(
+        settings.get("rate_per_kg_tirana_lek", 100.0)
+        if is_tirana
+        else settings.get("rate_per_kg_outside_lek", 300.0)
+    )
 
     free = float(subtotal_lek or 0) >= free_threshold
     weight_kg = max(0.0, int(weight_grams or 0) / 1000.0)

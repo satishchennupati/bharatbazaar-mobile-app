@@ -18,11 +18,14 @@ STORE_DEFAULTS = {
 }
 
 # Shipping defaults. When an order's subtotal is below the (zone-specific) free
-# threshold, delivery is charged at a flat rate per kg in BOTH zones.
+# threshold, delivery is charged at a flat rate per kg that now differs by zone:
+# Tirana city 100 L/kg, rest of Albania 300 L/kg. Billable weight rounds up to
+# the next whole kg.
 SHIPPING_DEFAULTS = {
     "free_min_tirana_lek": 1000.0,
     "free_min_outside_lek": 2000.0,
-    "rate_per_kg_lek": 100.0,  # flat LEK per kg charged below the free threshold
+    "rate_per_kg_tirana_lek": 100.0,
+    "rate_per_kg_outside_lek": 300.0,
 }
 
 _FLOAT_FIELDS = tuple(SHIPPING_DEFAULTS.keys())

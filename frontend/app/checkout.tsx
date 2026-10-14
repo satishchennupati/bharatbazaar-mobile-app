@@ -129,6 +129,12 @@ export default function Checkout() {
 
   const subLek = cart?.subtotal_lek || 0;
   const subEur = cart?.subtotal_eur || 0;
+  // Total weight of all ordered items (grams), shown in the order summary.
+  const totalWeightGrams = (cart?.items || []).reduce(
+    (sum, it) => sum + (it.weight_grams || 0) * (it.qty || 1),
+    0,
+  );
+  const totalWeightKg = totalWeightGrams / 1000;
   const couponDiscLek = appliedCoupon?.discount_lek || 0;
   const couponDiscEur = couponDiscLek / LEK_PER_EUR;
   const netSubLek = Math.max(0, subLek - couponDiscLek);
@@ -599,6 +605,10 @@ export default function Checkout() {
         <View style={styles.summary}>
           <Text style={styles.section}>Order summary</Text>
           <Row label={t("subtotal")} value={formatPrice(subLek, subEur, currency)} />
+          <Row
+            label="Total weight"
+            value={totalWeightKg >= 1 ? `${totalWeightKg.toFixed(2)} kg` : `${totalWeightGrams} g`}
+          />
           {couponDiscLek > 0 && (
             <Row
               label={`Coupon (${appliedCoupon?.code})`}

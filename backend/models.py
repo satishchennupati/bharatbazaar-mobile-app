@@ -289,7 +289,8 @@ class ShippingSettingsIn(BaseModel):
     admin can tweak individual fields."""
     free_min_tirana_lek: Optional[float] = Field(None, ge=0)
     free_min_outside_lek: Optional[float] = Field(None, ge=0)
-    rate_per_kg_lek: Optional[float] = Field(None, ge=0)
+    rate_per_kg_tirana_lek: Optional[float] = Field(None, ge=0)
+    rate_per_kg_outside_lek: Optional[float] = Field(None, ge=0)
 
 
 class StoreSettingsIn(BaseModel):
