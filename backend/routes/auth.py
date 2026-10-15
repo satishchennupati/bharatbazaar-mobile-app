@@ -40,6 +40,7 @@ async def _send_sms_otp(phone: str, code: str, purpose: str = "register") -> dic
             "purpose": purpose,
             "phoneCountryCode": cc,
             "phoneNumber": phone,
+            "otp": code,
             "channel": "sms",
             "providerMessageId": result.get("sid"),
             "deliveryStatus": "accepted" if result.get("sent") else "failed",
