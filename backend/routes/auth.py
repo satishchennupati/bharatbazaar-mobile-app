@@ -20,7 +20,7 @@ from security import (
     make_token,
 )
 from services.notifications import send_sms
-from services.webhooks import emit_event, mask_phone, split_phone
+from services.webhooks import emit_event, split_phone
 
 router = APIRouter(prefix="/auth")
 logger = logging.getLogger("bharat_bazaar")
@@ -39,12 +39,12 @@ async def _send_sms_otp(phone: str, code: str, purpose: str = "register") -> dic
         {
             "purpose": purpose,
             "phoneCountryCode": cc,
-            "phoneMasked": mask_phone(phone),
+            "phoneNumber": phone,
             "channel": "sms",
             "providerMessageId": result.get("sid"),
             "deliveryStatus": "accepted" if result.get("sent") else "failed",
         },
-        correlation_id=f"corr_otp_{purpose}_{mask_phone(phone)}",
+        correlation_id=f"corr_otp_{purpose}_{phone}",
     )
     if result.get("sent"):
         return result

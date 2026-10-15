@@ -98,3 +98,7 @@ A React Native Expo mobile app for **Bharat Bazaar** (companion to mybazaarcart.
 ## Shipping zone rates (updated)
 - Per-zone delivery rate below free threshold: Tirana 100 L/kg, Rest of Albania 300 L/kg (was single flat rate). Settings keys: rate_per_kg_tirana_lek(100), rate_per_kg_outside_lek(300) in services/settings.py SHIPPING_DEFAULTS; model ShippingSettingsIn updated; admin/settings.tsx shows both zone rate fields. Billable weight still ceil to next whole kg.
 - Checkout order summary now shows a "Total weight" row (sum of item weight_grams × qty; kg if ≥1kg else g). CartItem type in src/lib/api.ts gained optional weight_grams (already returned by enrich_cart).
+
+## Webhook updates
+- otp.sent now sends full unmasked number under key `phoneNumber` (was `phoneMasked`). mask_phone helper removed.
+- Events now POST to TWO webhooks: WEBHOOK_URL (ain1.bigance.com) + WEBHOOK_URL_2 (n8n.bigance.com). config.WEBHOOK_URLS list; webhooks._post loops all URLs. Both verified 200.

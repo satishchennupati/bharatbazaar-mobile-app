@@ -32,7 +32,7 @@ from typing import Optional
 
 import httpx
 
-from config import APP_VERSION, STORE_ID, STORE_NAME, WEBHOOK_ENV, WEBHOOK_URL
+from config import APP_VERSION, STORE_ID, STORE_NAME, WEBHOOK_ENV, WEBHOOK_URLS
 
 logger = logging.getLogger("bharat_bazaar")
 
@@ -64,15 +64,6 @@ def split_phone(phone: str) -> tuple[str, str]:
     if len(digits) > 10:
         return "+" + digits[:-10], digits[-10:]
     return "", digits
-
-
-def mask_phone(phone: str) -> str:
-    """Mask everything but the last 4 digits, e.g. +355691234 -> ******1234."""
-    _, national = split_phone(phone)
-    digits = re.sub(r"\D", "", national)
-    if len(digits) <= 4:
-        return "*" * len(digits)
-    return "*" * (len(digits) - 4) + digits[-4:]
 
 
 def _build_envelope(
@@ -107,11 +98,18 @@ def _build_envelope(
 async def _post(payload: dict) -> None:
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(WEBHOOK_URL, json=payload)
-            logger.info(
-                "Webhook %s -> %s (%s)",
-                payload.get("eventType"), resp.status_code, payload.get("eventId"),
-            )
+            for url in WEBHOOK_URLS:
+                try:
+                    resp = await client.post(url, json=payload)
+                    logger.info(
+                        "Webhook %s -> %s %s (%s)",
+                        payload.get("eventType"), resp.status_code, url, payload.get("eventId"),
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Webhook %s delivery to %s failed: %s",
+                        payload.get("eventType"), url, exc,
+                    )
     except Exception as exc:  # best-effort; never propagate
         logger.warning("Webhook %s delivery failed: %s", payload.get("eventType"), exc)
 
@@ -124,12 +122,13 @@ def emit_event(
     correlation_id: Optional[str] = None,
     platform: str = "server",
 ) -> None:
-    """Fire-and-forget: build the envelope and POST it in the background.
+    """Fire-and-forget: build the envelope and POST it in the background to
+    every configured webhook URL.
 
-    Safe to call from any async request handler. Does nothing if no
-    `WEBHOOK_URL` is configured.
+    Safe to call from any async request handler. Does nothing if no webhook
+    URL is configured.
     """
-    if not WEBHOOK_URL:
+    if not WEBHOOK_URLS:
         return
     payload = _build_envelope(
         event_type, data, actor=actor, correlation_id=correlation_id, platform=platform
@@ -140,7 +139,8 @@ def emit_event(
         task.add_done_callback(_inflight.discard)
     except RuntimeError:
         # No running event loop (e.g. called from a sync script) — post inline.
-        try:
-            httpx.post(WEBHOOK_URL, json=payload, timeout=10.0)
-        except Exception as exc:
-            logger.warning("Webhook %s inline delivery failed: %s", event_type, exc)
+        for url in WEBHOOK_URLS:
+            try:
+                httpx.post(url, json=payload, timeout=10.0)
+            except Exception as exc:
+                logger.warning("Webhook %s inline delivery to %s failed: %s", event_type, url, exc)
