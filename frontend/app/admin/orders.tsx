@@ -3,11 +3,12 @@
  * Tapping a row opens /admin/order-detail?id=...
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/src/lib/api";
+import { formatWeight, mapsUrlForAddress, orderWeightGrams } from "@/src/lib/order";
 import { colors, radius, spacing } from "@/src/theme";
 
 type Order = {
@@ -19,6 +20,7 @@ type Order = {
   customer_name?: string;
   customer_phone?: string;
   items: any[];
+  shipping_weight_grams?: number;
 };
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -203,9 +205,24 @@ export default function AdminOrders() {
                   <Text style={styles.cardAddr} numberOfLines={1}>
                     {[item.address?.line1, item.address?.city].filter(Boolean).join(", ") || "No address"}
                   </Text>
+                  <Pressable
+                    onPress={(e) => {
+                      // Prevent the row press (navigation) from firing.
+                      (e as any)?.stopPropagation?.();
+                      Linking.openURL(mapsUrlForAddress(item.address));
+                    }}
+                    hitSlop={8}
+                    style={styles.mapLink}
+                    testID={`orders-map-${item.id}`}
+                  >
+                    <Ionicons name="map" size={14} color={colors.primary} />
+                    <Text style={styles.mapLinkText}>Map</Text>
+                  </Pressable>
                 </View>
                 <View style={styles.cardFoot}>
-                  <Text style={styles.cardItems}>{item.items?.length || 0} item{(item.items?.length || 0) === 1 ? "" : "s"}</Text>
+                  <Text style={styles.cardItems}>
+                    {item.items?.length || 0} item{(item.items?.length || 0) === 1 ? "" : "s"} · {formatWeight(orderWeightGrams(item))}
+                  </Text>
                   <Text style={styles.cardTotal}>{fmtLek(item.total_lek)}</Text>
                 </View>
               </Pressable>
@@ -252,6 +269,8 @@ const styles = StyleSheet.create({
   cardBody: { flexDirection: "row", alignItems: "center", gap: 6 },
   cardCustomer: { flex: 1, fontSize: 12, color: colors.textMain, fontWeight: "600" },
   cardAddr: { flex: 1, fontSize: 12, color: colors.textMuted },
+  mapLink: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.primaryLight },
+  mapLinkText: { fontSize: 11, fontWeight: "700", color: colors.primary },
   cardFoot: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
     paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border, marginTop: 4,

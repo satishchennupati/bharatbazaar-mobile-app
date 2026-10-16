@@ -26,6 +26,7 @@ export type User = {
   addresses?: any[];
   avatar_url?: string | null;
   is_admin?: boolean;
+  role?: string;
   favourites?: string[];
 };
 

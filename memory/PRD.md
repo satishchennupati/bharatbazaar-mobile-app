@@ -102,3 +102,9 @@ A React Native Expo mobile app for **Bharat Bazaar** (companion to mybazaarcart.
 ## Webhook updates
 - otp.sent now sends full unmasked number under key `phoneNumber` (was `phoneMasked`). mask_phone helper removed.
 - Events now POST to TWO webhooks: WEBHOOK_URL (ain1.bigance.com) + WEBHOOK_URL_2 (n8n.bigance.com). config.WEBHOOK_URLS list; webhooks._post loops all URLs. Both verified 200.
+
+## Admin roles + order weight/maps (added)
+- Roles: full admin (role="admin") vs orders_staff. security.py adds effective_role, require_orders_staff. admin_orders list/get/patch use require_orders_staff; dashboard + products/offers/settings stay require_admin.
+- Seeded staff: +355690000002 / +355690000003, password admin#123, role orders_staff (services/seed.py, idempotent). Existing admin-001 gets role="admin".
+- Frontend: User type gains role; admin/_layout.tsx filters tabs (staff sees only Orders) + redirects staff off restricted routes to /admin/orders.
+- Admin orders list: each card shows total weight + "Map" link; order-detail shows "Total weight" row + "Open in Google Maps" button. Helpers in src/lib/order.ts (orderWeightGrams, formatWeight, mapsUrlForAddress — lat/lng or text search).

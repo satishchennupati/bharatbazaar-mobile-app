@@ -11,6 +11,19 @@ from fastapi import Depends, Header, HTTPException
 from config import JWT_ALGO, JWT_EXP_HOURS, JWT_SECRET
 from db import db
 
+# Admin roles. Full admins ("admin") can access everything; "orders_staff" can
+# only view orders and update order status.
+ROLE_ADMIN = "admin"
+ROLE_ORDERS_STAFF = "orders_staff"
+
+
+def effective_role(user: dict) -> Optional[str]:
+    """Resolve a user's admin role. Legacy admins without an explicit role are
+    treated as full admins for backward compatibility."""
+    if user.get("role"):
+        return user["role"]
+    return ROLE_ADMIN if user.get("is_admin") else None
+
 
 def hash_pw(pw: str) -> str:
     return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -96,4 +109,15 @@ async def get_current_user(authorization: Annotated[Optional[str], Header()] = N
 async def require_admin(user: dict = Depends(get_current_user)) -> dict:
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin access required")
+    if effective_role(user) != ROLE_ADMIN:
+        raise HTTPException(status_code=403, detail="Insufficient admin permissions")
+    return user
+
+
+async def require_orders_staff(user: dict = Depends(get_current_user)) -> dict:
+    """Allow full admins and orders-only staff. Used to gate order endpoints."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    if effective_role(user) not in (ROLE_ADMIN, ROLE_ORDERS_STAFF):
+        raise HTTPException(status_code=403, detail="Insufficient admin permissions")
     return user

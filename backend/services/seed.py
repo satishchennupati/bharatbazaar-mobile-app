@@ -167,6 +167,7 @@ async def seed_all():
         "id": "admin-001", "username": "admin", "phone": admin_phone,
         "full_name": "Bharat Bazaar Admin", "email": "admin@bharatbazaar.com",
         "language": "en", "currency": "LEK", "addresses": [], "is_admin": True,
+        "role": "admin",
     }
     existing_admin = await db.users.find_one({"phone": admin_phone})
     if not existing_admin:
@@ -182,9 +183,40 @@ async def seed_all():
     else:
         await db.users.update_one(
             {"phone": admin_phone},
-            {"$set": {"password_hash": hash_pw(admin_pw), "is_admin": True}},
+            {"$set": {"password_hash": hash_pw(admin_pw), "is_admin": True, "role": "admin"}},
         )
         logger.info("Ensured admin flag & password for %s", admin_phone)
+
+    # Orders-only staff accounts: can view orders & change status, but cannot
+    # access products, offers, shipping settings or the dashboard.
+    staff_pw = "admin#123"
+    staff_accounts = [
+        {"id": "staff-001", "phone": "+355690000002", "full_name": "Orders Staff 1"},
+        {"id": "staff-002", "phone": "+355690000003", "full_name": "Orders Staff 2"},
+    ]
+    for s in staff_accounts:
+        defaults = {
+            "id": s["id"], "username": s["phone"].replace("+", "u"), "phone": s["phone"],
+            "full_name": s["full_name"], "email": "", "language": "en", "currency": "LEK",
+            "addresses": [], "is_admin": True, "role": "orders_staff",
+        }
+        existing_staff = await db.users.find_one({"phone": s["phone"]})
+        if not existing_staff:
+            try:
+                await db.users.insert_one({
+                    **defaults,
+                    "password_hash": hash_pw(staff_pw),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+                logger.info("Seeded orders-staff user %s", s["phone"])
+            except Exception as e:
+                logger.warning("Could not seed staff user %s: %s", s["phone"], e)
+        else:
+            await db.users.update_one(
+                {"phone": s["phone"]},
+                {"$set": {"password_hash": hash_pw(staff_pw), "is_admin": True, "role": "orders_staff"}},
+            )
+            logger.info("Ensured orders-staff flag & password for %s", s["phone"])
 
     # Sample offer seed (idempotent - only if collection empty)
     if await db.offers.count_documents({}) == 0:

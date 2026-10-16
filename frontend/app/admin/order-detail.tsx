@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet,
+  ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet,
   Text, TextInput, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -12,6 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/src/lib/api";
+import { formatWeight, mapsUrlForAddress, orderWeightGrams } from "@/src/lib/order";
 import { colors, radius, spacing } from "@/src/theme";
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string; icon: string }> = {
@@ -232,6 +233,14 @@ export default function AdminOrderDetail() {
           {[order.address?.city, order.address?.state, order.address?.postal_code].filter(Boolean).join(", ")}
         </Text>
         <Text style={styles.addrLine}>{order.address?.country || "Albania"}</Text>
+        <Pressable
+          onPress={() => Linking.openURL(mapsUrlForAddress(order.address))}
+          style={styles.mapsBtn}
+          testID="od-maps"
+        >
+          <Ionicons name="map" size={16} color="#fff" />
+          <Text style={styles.mapsBtnText}>Open in Google Maps</Text>
+        </Pressable>
         {order.note ? (
           <View style={styles.noteBox}>
             <Ionicons name="chatbubble-ellipses" size={14} color={colors.textMuted} />
@@ -253,6 +262,7 @@ export default function AdminOrderDetail() {
           </View>
         ))}
         <View style={styles.divider} />
+        <TotalRow label="Total weight" value={formatWeight(orderWeightGrams(order))} />
         <TotalRow label="Subtotal" value={fmtLek(order.subtotal_lek)} />
         <TotalRow label="Delivery fee" value={order.delivery_fee_lek === 0 ? "Free" : fmtLek(order.delivery_fee_lek)} />
         <TotalRow label="Total" value={fmtLek(order.total_lek)} bold />
@@ -402,6 +412,11 @@ const styles = StyleSheet.create({
   infoLabel: { fontSize: 12, color: colors.textMuted, fontWeight: "600" },
   infoValue: { fontSize: 13, color: colors.textMain, fontWeight: "600", flex: 1 },
   addrLine: { fontSize: 13, color: colors.textMain, lineHeight: 18 },
+  mapsBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 11, marginTop: 10,
+  },
+  mapsBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   noteBox: { flexDirection: "row", gap: 6, backgroundColor: colors.surfaceMuted, padding: 8, borderRadius: 8, marginTop: 6 },
   noteText: { flex: 1, fontSize: 12, color: colors.textMain },
   itemRow: {

@@ -15,11 +15,11 @@ import { colors, radius, spacing } from "@/src/theme";
 import { useApp } from "@/src/store/app-context";
 
 const TABS = [
-  { key: "index", label: "Dashboard", icon: "grid-outline" as const, path: "/admin" },
-  { key: "orders", label: "Orders", icon: "receipt-outline" as const, path: "/admin/orders" },
-  { key: "products", label: "Products", icon: "cube-outline" as const, path: "/admin/products" },
-  { key: "offers", label: "Offers", icon: "pricetag-outline" as const, path: "/admin/offers" },
-  { key: "settings", label: "Shipping", icon: "car-outline" as const, path: "/admin/settings" },
+  { key: "index", label: "Dashboard", icon: "grid-outline" as const, path: "/admin", adminOnly: true },
+  { key: "orders", label: "Orders", icon: "receipt-outline" as const, path: "/admin/orders", adminOnly: false },
+  { key: "products", label: "Products", icon: "cube-outline" as const, path: "/admin/products", adminOnly: true },
+  { key: "offers", label: "Offers", icon: "pricetag-outline" as const, path: "/admin/offers", adminOnly: true },
+  { key: "settings", label: "Shipping", icon: "car-outline" as const, path: "/admin/settings", adminOnly: true },
 ];
 
 export default function AdminLayout() {
@@ -31,6 +31,9 @@ export default function AdminLayout() {
 
   const isWide = width >= 768;
   const isLogin = segments[segments.length - 1] === "login";
+  // Orders-only staff see a restricted panel (Orders tab only).
+  const isStaff = !!user && user.role === "orders_staff";
+  const tabs = isStaff ? TABS.filter((t) => !t.adminOnly) : TABS;
 
   useEffect(() => {
     if (!ready) return;
@@ -42,8 +45,18 @@ export default function AdminLayout() {
       router.replace("/admin/login");
       return;
     }
+    // Staff cannot access the dashboard or other admin-only screens — send
+    // them to Orders if they land on a restricted route.
+    if (isStaff) {
+      const last = segments[segments.length - 1];
+      const restricted = last === "admin" || last === "index" || last === "products" || last === "offers" || last === "settings";
+      if (restricted) {
+        router.replace("/admin/orders");
+        return;
+      }
+    }
     setChecked(true);
-  }, [ready, token, user, isLogin, router]);
+  }, [ready, token, user, isLogin, isStaff, segments, router]);
 
   if (isLogin) return <Slot />;
   if (!checked) return null;
@@ -72,7 +85,7 @@ export default function AdminLayout() {
               </View>
             </View>
             <View style={{ height: spacing.lg }} />
-            {TABS.map((t) => {
+            {tabs.map((t) => {
               const active = t.key === activeKey;
               return (
                 <Pressable
@@ -129,7 +142,7 @@ export default function AdminLayout() {
         <Slot />
       </View>
       <View style={styles.tabBar}>
-        {TABS.map((t) => {
+        {tabs.map((t) => {
           const active = t.key === activeKey;
           return (
             <Pressable

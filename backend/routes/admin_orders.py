@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from config import ORDER_STATUSES
 from db import db
 from models import AdminOrderPatch
-from security import require_admin
+from security import require_admin, require_orders_staff
 from services.notifications import notify_order_status
 from services.webhooks import emit_event
 
@@ -26,7 +26,7 @@ async def admin_list_orders(
     from_date: Optional[str] = Query(None),
     to_date: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
-    _: dict = Depends(require_admin),
+    _: dict = Depends(require_orders_staff),
 ):
     query: dict = {}
     if status and status != "all":
@@ -53,7 +53,7 @@ async def admin_list_orders(
 
 
 @router.get("/orders/{order_id}")
-async def admin_get_order(order_id: str, _: dict = Depends(require_admin)):
+async def admin_get_order(order_id: str, _: dict = Depends(require_orders_staff)):
     order = await db.orders.find_one({"id": order_id}, {"_id": 0})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -67,7 +67,7 @@ async def admin_get_order(order_id: str, _: dict = Depends(require_admin)):
 
 
 @router.patch("/orders/{order_id}")
-async def admin_update_order(order_id: str, payload: AdminOrderPatch, admin: dict = Depends(require_admin)):
+async def admin_update_order(order_id: str, payload: AdminOrderPatch, admin: dict = Depends(require_orders_staff)):
     order = await db.orders.find_one({"id": order_id}, {"_id": 0})
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
