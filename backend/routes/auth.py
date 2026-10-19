@@ -173,6 +173,25 @@ async def set_password(payload: SetPasswordIn):
     await db.users.insert_one(user_doc)
     user_doc.pop("_id", None)
     user_doc.pop("password_hash", None)
+    # user.registered webhook event (best-effort, non-blocking).
+    cc, _ = split_phone(phone)
+    emit_event(
+        "user.registered",
+        {
+            "customerId": user_id,
+            "registrationMethod": "mobile_otp",
+            "phoneCountryCode": cc,
+            "phoneNumber": phone,
+            "emailProvided": bool(payload.email),
+            "emailVerified": False,
+            "phoneVerified": True,
+            "accountStatus": "active",
+            "marketingConsent": False,
+            "referralCode": None,
+        },
+        actor={"customerId": user_id},
+        correlation_id=f"corr_user_{user_id}",
+    )
     token = make_token(user_id)
     return {"token": token, "user": user_doc}
 
