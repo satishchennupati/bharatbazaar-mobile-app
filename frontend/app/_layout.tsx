@@ -25,7 +25,9 @@ function RootGate() {
     const inAdmin = segments[0] === "admin";
     // Admin panel has its own auth flow — don't route it through the customer gate.
     if (inAdmin) return;
-    if (!onboarded && !atOnboarding) {
+    // A logged-in user (token present) has already passed onboarding — never
+    // force them back to the intro, which would loop with the tabs redirect.
+    if (!onboarded && !atOnboarding && !token) {
       router.replace("/onboarding");
       return;
     }

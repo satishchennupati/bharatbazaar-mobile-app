@@ -381,10 +381,30 @@ function EditProductModal({
     });
     if (result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
-    const mime = asset.mimeType || "image/jpeg";
-    const b64 = asset.base64 || "";
-    if (!b64) return;
-    const dataUrl = `data:${mime};base64,${b64}`;
+    let dataUrl: string | null = null;
+    if (asset.base64) {
+      const mime = asset.mimeType || "image/jpeg";
+      dataUrl = `data:${mime};base64,${asset.base64}`;
+    } else if (asset.uri) {
+      // On web (and some native cases) base64 may be null — derive a data URL
+      // from the picked file so the upload still works.
+      try {
+        const resp = await fetch(asset.uri);
+        const blob = await resp.blob();
+        dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch {
+        dataUrl = null;
+      }
+    }
+    if (!dataUrl || !dataUrl.startsWith("data:image/")) {
+      setError("Could not read the selected image. Please try another file.");
+      return;
+    }
     setImgDataUrl(dataUrl);
     setImgPreview(dataUrl);
   };

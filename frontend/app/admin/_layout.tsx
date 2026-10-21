@@ -72,6 +72,9 @@ export default function AdminLayout() {
     router.replace("/admin/login");
   };
 
+  // Return to the customer-facing app WITHOUT logging out (session persists).
+  const goToApp = () => router.replace("/(tabs)");
+
   if (isWide) {
     return (
       <SafeAreaView style={styles.wideSafe} edges={["top"]}>
@@ -102,6 +105,10 @@ export default function AdminLayout() {
               );
             })}
             <View style={{ flex: 1 }} />
+            <Pressable onPress={goToApp} style={styles.backToApp} testID="admin-back-to-app">
+              <Ionicons name="storefront-outline" size={18} color={colors.primary} />
+              <Text style={styles.backToAppText}>Back to store</Text>
+            </Pressable>
             <View style={styles.userChip}>
               <View style={styles.avatar}>
                 <Ionicons name="person" size={16} color={colors.primary} />
@@ -134,9 +141,15 @@ export default function AdminLayout() {
           <Text style={styles.brandDot}>🛒</Text>
           <Text style={styles.mobileTitle}>Admin</Text>
         </View>
-        <Pressable onPress={onLogout} style={styles.iconBtn} testID="admin-logout-mobile">
-          <Ionicons name="log-out-outline" size={20} color={colors.textMuted} />
-        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Pressable onPress={goToApp} style={styles.backToAppMobile} testID="admin-back-to-app-mobile">
+            <Ionicons name="storefront-outline" size={16} color={colors.primary} />
+            <Text style={styles.backToAppText}>Store</Text>
+          </Pressable>
+          <Pressable onPress={onLogout} style={styles.iconBtn} testID="admin-logout-mobile">
+            <Ionicons name="log-out-outline" size={20} color={colors.textMuted} />
+          </Pressable>
+        </View>
       </View>
       <View style={{ flex: 1 }}>
         <Slot />
@@ -189,6 +202,17 @@ const styles = StyleSheet.create({
   },
   sideItemActive: { backgroundColor: colors.primaryLight },
   sideLabel: { fontSize: 14, color: colors.textMain, fontWeight: "600" },
+  backToApp: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 11, borderRadius: radius.md, marginBottom: 10,
+    borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primaryLight,
+  },
+  backToAppMobile: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999,
+    borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primaryLight,
+  },
+  backToAppText: { fontSize: 12, fontWeight: "700", color: colors.primary },
   userChip: {
     flexDirection: "row",
     alignItems: "center",

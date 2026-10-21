@@ -5,6 +5,7 @@ import base64
 import logging
 import os
 import re
+import time
 from typing import Optional
 
 import httpx
@@ -35,7 +36,9 @@ def save_data_url_as_image(data_url: str, product_id: str, subdir: str = "produc
     else:
         target_dir = STATIC_DIR / subdir
         target_dir.mkdir(parents=True, exist_ok=True)
-    fname = f"{product_id}.{ext}"
+    # Unique filename per upload so a re-uploaded image is never hidden behind
+    # a stale browser/CDN cache of the same URL.
+    fname = f"{product_id}-{int(time.time())}.{ext}"
     fpath = target_dir / fname
     with open(fpath, "wb") as f:
         f.write(content)

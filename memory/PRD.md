@@ -108,3 +108,10 @@ A React Native Expo mobile app for **Bharat Bazaar** (companion to mybazaarcart.
 - Seeded staff: +355690000002 / +355690000003, password admin#123, role orders_staff (services/seed.py, idempotent). Existing admin-001 gets role="admin".
 - Frontend: User type gains role; admin/_layout.tsx filters tabs (staff sees only Orders) + redirects staff off restricted routes to /admin/orders.
 - Admin orders list: each card shows total weight + "Map" link; order-detail shows "Total weight" row + "Open in Google Maps" button. Helpers in src/lib/order.ts (orderWeightGrams, formatWeight, mapsUrlForAddress — lat/lng or text search).
+
+## Admin image upload + back-to-store (fixed)
+- Admin product image upload now works on web: pickImage falls back to deriving a data URL from asset.uri (fetch→blob→FileReader) when expo-image-picker returns null base64 (app/admin/products.tsx).
+- save_data_url_as_image now writes a unique timestamped filename ({id}-{epoch}.{ext}) so re-uploaded images are never hidden by stale browser cache (backend/services/images.py).
+- user.registered webhook added on account creation (set-password) — posts to both webhooks with full phoneNumber.
+- Admin panel: "Back to store" button (sidebar + mobile header) navigates to /(tabs) WITHOUT logging out (app/admin/_layout.tsx, testIDs admin-back-to-app / admin-back-to-app-mobile).
+- Fixed RootGate infinite loop (app/_layout.tsx): onboarding redirect now skipped when a token exists (logged-in users never forced back to onboarding).
